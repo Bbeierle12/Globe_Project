@@ -6,11 +6,32 @@ import { COUNTRIES, ID_MAP, ISO_MAP, MP, WORLD_POP, RC, findCountry } from "./da
 var R = 1.8;
 var EARTH_TEX = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 var US_TEX = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
+var CA_TEX = "https://gist.githubusercontent.com/Brideau/2391df60938462571ca9/raw/f5a1f3b47ff671eaf2fb7e7b798bacfc6962606a/canadaprovtopo.json";
+var MX_TEX = "https://gist.githubusercontent.com/diegovalle/5129746/raw/c1c35e439b1d5e688bca20b79f0e53a1fc12bf9e/mx_tj.json";
+var IN_TEX = "https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/topojson/india.json";
 
 var FIPS = {};
 var usa = ISO_MAP["USA"];
 if (usa) {
   usa.subdivisions.forEach(function(s) { FIPS[s.fp] = s; });
+}
+
+var CA_PROV = {};
+var can = ISO_MAP["CAN"];
+if (can) {
+  can.subdivisions.forEach(function(s) { if (s.pc) CA_PROV[s.pc] = s; });
+}
+
+var MX_STATE = {};
+var mex = ISO_MAP["MEX"];
+if (mex) {
+  mex.subdivisions.forEach(function(s) { if (s.sc) MX_STATE[s.sc] = s; });
+}
+
+var IN_STATE = {};
+var ind = ISO_MAP["IND"];
+if (ind) {
+  ind.subdivisions.forEach(function(s) { if (s.sc) IN_STATE[s.sc] = s; });
 }
 
 function fmt(n) {
@@ -304,14 +325,23 @@ export default function Globe() {
       // Now fetch the topo data
       Promise.all([
         fetch(EARTH_TEX).then(function(r) { return r.json(); }),
-        fetch(US_TEX).then(function(r) { return r.json(); })
+        fetch(US_TEX).then(function(r) { return r.json(); }),
+        fetch(CA_TEX).then(function(r) { return r.json(); }),
+        fetch(MX_TEX).then(function(r) { return r.json(); }),
+        fetch(IN_TEX).then(function(r) { return r.json(); })
       ]).then(function(results) {
         if (dead) return;
         var worldTopo = results[0];
         var usTopo = results[1];
+        var caTopo = results[2];
+        var mxTopo = results[3];
+        var inTopo = results[4];
 
         var worldGeo = decodeTopo(worldTopo, "countries");
         var stateGeo = decodeTopo(usTopo, "states");
+        var provGeo = decodeTopo(caTopo, "canadaprov");
+        var mxGeo = decodeTopo(mxTopo, "states");
+        var inGeo = decodeTopo(inTopo, "states");
 
         // Paint the texture
         var cw = 4096, ch = 2048;
@@ -331,11 +361,11 @@ export default function Globe() {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, cw, ch);
 
-        // Fill countries (skip US - states fill it)
+        // Fill countries (skip US, Canada, Mexico - subdivisions fill them)
         worldGeo.features.forEach(function(f) {
           if (!f.geometry) return;
           var name = ID_MAP[String(f.id)];
-          if (name === "United States of America") return;
+          if (name === "United States of America" || name === "Canada" || name === "Mexico" || name === "India") return;
           ctx.beginPath();
           pathGen(f);
           var cd = findCountry(f.id);
@@ -364,6 +394,54 @@ export default function Globe() {
           ctx.fill();
         });
 
+        // Fill Canadian provinces individually
+        provGeo.features.forEach(function(f) {
+          if (!f.geometry) return;
+          var provId = (f.properties && f.properties.id) || f.id || null;
+          var prov = provId ? CA_PROV[provId] : null;
+          ctx.beginPath();
+          pathGen(f);
+          if (prov) {
+            var rgb = pClr(prov.p);
+            ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+          } else {
+            ctx.fillStyle = "#1a3050";
+          }
+          ctx.fill();
+        });
+
+        // Fill Mexican states individually
+        mxGeo.features.forEach(function(f) {
+          if (!f.geometry) return;
+          var sc = f.properties && f.properties.state_code != null ? String(f.properties.state_code).padStart(2, "0") : null;
+          var st = sc ? MX_STATE[sc] : null;
+          ctx.beginPath();
+          pathGen(f);
+          if (st) {
+            var rgb = pClr(st.p);
+            ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+          } else {
+            ctx.fillStyle = "#1a3050";
+          }
+          ctx.fill();
+        });
+
+        // Fill Indian states individually
+        inGeo.features.forEach(function(f) {
+          if (!f.geometry) return;
+          var sc = f.properties && f.properties.st_code != null ? String(f.properties.st_code).padStart(2, "0") : null;
+          var st = sc ? IN_STATE[sc] : null;
+          ctx.beginPath();
+          pathGen(f);
+          if (st) {
+            var rgb = pClr(st.p);
+            ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+          } else {
+            ctx.fillStyle = "#1a3050";
+          }
+          ctx.fill();
+        });
+
         // Country borders
         ctx.strokeStyle = "rgba(140,190,255,0.22)";
         ctx.lineWidth = 1;
@@ -374,10 +452,40 @@ export default function Globe() {
           ctx.stroke();
         });
 
-        // State borders (brighter)
+        // US state borders
         ctx.strokeStyle = "rgba(200,230,255,0.5)";
         ctx.lineWidth = 1;
         stateGeo.features.forEach(function(f) {
+          if (!f.geometry) return;
+          ctx.beginPath();
+          pathGen(f);
+          ctx.stroke();
+        });
+
+        // Canadian province borders
+        ctx.strokeStyle = "rgba(200,230,255,0.5)";
+        ctx.lineWidth = 1;
+        provGeo.features.forEach(function(f) {
+          if (!f.geometry) return;
+          ctx.beginPath();
+          pathGen(f);
+          ctx.stroke();
+        });
+
+        // Mexican state borders
+        ctx.strokeStyle = "rgba(200,230,255,0.5)";
+        ctx.lineWidth = 1;
+        mxGeo.features.forEach(function(f) {
+          if (!f.geometry) return;
+          ctx.beginPath();
+          pathGen(f);
+          ctx.stroke();
+        });
+
+        // Indian state borders
+        ctx.strokeStyle = "rgba(200,230,255,0.5)";
+        ctx.lineWidth = 1;
+        inGeo.features.forEach(function(f) {
           if (!f.geometry) return;
           ctx.beginPath();
           pathGen(f);
