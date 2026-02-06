@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T11:06:50Z
-version: 1.1
+last_updated: 2026-02-06T13:59:27Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -23,6 +23,20 @@ Globe_Project/
 ├── census_pop.xlsx           # Census population data source
 ├── census_change.xlsx        # Census change data source
 ├── public/                   # Static assets (served as-is)
+│   └── topo/                 # Local TopoJSON boundary files
+│       ├── br-states.json    # Brazil states
+│       ├── co-departments.json # Colombia departments
+│       ├── pe-regions.json   # Peru regions
+│       ├── ar-provinces.json # Argentina provinces (untracked)
+│       ├── bo-departments.json # Bolivia departments (untracked)
+│       ├── cl-regions.json   # Chile regions (untracked)
+│       ├── ec-provinces.json # Ecuador provinces (untracked)
+│       ├── gf-territory.json # French Guiana (untracked)
+│       ├── gy-regions.json   # Guyana regions (untracked)
+│       ├── py-departments.json # Paraguay departments (untracked)
+│       ├── sr-districts.json # Suriname districts (untracked)
+│       ├── uy-departments.json # Uruguay departments (untracked)
+│       └── ve-states.json    # Venezuela states (untracked)
 ├── dist/                     # Build output
 ├── node_modules/             # Dependencies
 ├── src/
@@ -41,27 +55,30 @@ Globe_Project/
 
 ## Key Files
 
-### `src/Globe.jsx` (758 lines)
+### `src/Globe.jsx` (~763 lines)
 The single monolithic component containing all application logic:
 - Three.js scene setup (camera, lights, renderer, controls)
 - TopoJSON fetching and decoding (custom `decodeTopo()` function)
+- Data-driven subdivision handling via `SUB_CONFIGS` iteration
 - Canvas texture painting with d3 projection
 - Marker creation and visibility management
 - React state and UI rendering (sidebar, tooltip, detail panel)
 - Mouse/wheel event handlers for interaction
 
-### `src/data/countries.js` (~315 lines)
+### `src/data/countries.js` (~437 lines)
 Hierarchical data array with 174 countries/territories where each country contains:
 - Basic info: name, population, coordinates, type, aliases, ISO code
 - Subdivision label and embedded subdivisions array
+- 8 countries have populated subdivisions (251 total subdivisions)
 - Subdivisions have demographic stats (density, region, capital, area, growth, age)
 
-### `src/data/index.js` (31 lines)
-Computed exports derived from countries data:
+### `src/data/index.js` (~253 lines)
+Data hub with computed exports and subdivision configuration:
 - `ISO_MAP` - ISO code → country object lookup
 - `MP` - Maximum population (for scaling)
 - `WORLD_POP` - Total world population
-- `RC` - Region color map (US, Canadian, Mexican, Indian regions)
+- `RC` - Region color map (US, CA, MX, IN, CN, BR, CO, PE, AR, VE, CL, EC, BO, PY, UY, GY, SR, GF regions)
+- `SUB_CONFIGS` - Array of 18 subdivision configuration objects (iso, url, objectName, codeField, extractCode)
 - `findCountry()` - Feature ID → country object resolver
 
 ### `src/data/idMap.js` (4 lines)
@@ -79,4 +96,5 @@ Maps 174 TopoJSON numeric feature IDs to country names for matching world atlas 
 - Single-component architecture: `Globe.jsx` contains virtually all logic
 - Data extracted to `src/data/` directory with barrel export via `index.js`
 - No separate utilities, hooks, or service files
-- Lookup maps (FIPS, CA_PROV, MX_STATE, IN_STATE) built at module scope in Globe.jsx
+- Subdivision configs (`SUB_CONFIGS`) defined in `index.js`, iterated generically in `Globe.jsx`
+- Local TopoJSON files in `public/topo/` for countries without CDN sources

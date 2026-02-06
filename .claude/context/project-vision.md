@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-05T21:55:26Z
-version: 1.0
+last_updated: 2026-02-06T13:59:27Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -16,23 +16,27 @@ Create a comprehensive, visually compelling interactive population globe where e
 ### Phase 1: Core Architecture + Initial Countries (Complete)
 - Hierarchical data model with expand/collapse
 - USA, Canada, Mexico, India with full subdivisions and boundaries
-- 99 countries total, 132 subdivisions
+- 174 countries total (full world-atlas coverage)
+- Data-driven SUB_CONFIGS pattern for extensible subdivision handling
 
-### Phase 2: Major Countries Expansion (Planned)
-Add subdivisions and boundaries for 10 high-population countries:
-- China (Provinces)
-- Brazil (States)
-- Germany (States)
-- France (Regions)
-- Australia (States/Territories)
-- Japan (Prefectures)
-- Indonesia (Provinces)
-- United Kingdom (Countries/Regions)
-- South Korea (Provinces)
-- Pakistan (Provinces)
+### Phase 2: Major Countries Expansion (In Progress)
+Add subdivisions and boundaries for high-population/priority countries:
+- China (34 Provinces) - **Complete**
+- Brazil (27 States) - **Complete**
+- Colombia (33 Departments) - **Complete**
+- Peru (26 Regions) - **Complete**
+- Argentina, Venezuela, Chile, Ecuador, Bolivia, Paraguay, Uruguay, Guyana, Suriname, French Guiana - **Configs prepared, data pending**
+- Germany (States) - Planned
+- France (Regions) - Planned
+- Australia (States/Territories) - Planned
+- Japan (Prefectures) - Planned
+- Indonesia (Provinces) - Planned
+- United Kingdom (Countries/Regions) - Planned
+- South Korea (Provinces) - Planned
+- Pakistan (Provinces) - Planned
 
 ### Phase 3: Global Coverage (Future)
-Add remaining 85 countries' subdivisions progressively, prioritized by population.
+Add remaining 156 countries' subdivisions progressively, prioritized by population.
 
 ### Phase 4: Enhanced Features (Future)
 Potential expansions:

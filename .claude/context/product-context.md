@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T11:06:50Z
-version: 1.1
+last_updated: 2026-02-06T13:59:27Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -41,17 +41,22 @@ author: Claude Code PM System
 
 ### Geographical Boundaries
 Countries with subdivision data have internal borders painted on the globe texture:
-- USA: 51 states via us-atlas TopoJSON
-- Canada: 13 provinces/territories via Brideau gist TopoJSON
-- Mexico: 32 states via diegovalle gist TopoJSON
-- India: 36 states/union territories via india-maps-data TopoJSON
+- USA: 51 states via us-atlas TopoJSON (CDN)
+- Canada: 13 provinces/territories via Brideau gist TopoJSON (CDN)
+- Mexico: 32 states via diegovalle gist TopoJSON (CDN)
+- India: 36 states/union territories via india-maps-data TopoJSON (CDN)
+- China: 34 provinces via cn-atlas TopoJSON (CDN)
+- Brazil: 27 states via local TopoJSON
+- Colombia: 33 departments via local TopoJSON
+- Peru: 26 regions via local TopoJSON
 
 ## Data Coverage
 
 - **174 countries/territories** with population, coordinates, and aliases (full world-atlas TopoJSON coverage)
-- **132 subdivisions** across 4 countries (USA: 51, India: 36, Mexico: 32, Canada: 13)
+- **251 subdivisions** across 8 countries (USA: 51, India: 36, China: 34, Colombia: 33, Mexico: 32, Brazil: 27, Peru: 26, Canada: 13)
+- 10 additional South American countries have SUB_CONFIGS and TopoJSON prepared (awaiting subdivision data)
 - Subdivision stats include: population, density, region, capital, area, growth rate, median age
-- 170 countries have empty subdivision arrays (future expansion)
+- 166 countries have empty subdivision arrays (future expansion)
 - Includes 6 territories (Puerto Rico, Greenland, French Guiana, New Caledonia, Western Sahara, Mayotte, Falkland Islands) and Antarctica
 
 ## User Interactions

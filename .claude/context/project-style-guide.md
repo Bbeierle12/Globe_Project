@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-05T21:55:26Z
-version: 1.0
+last_updated: 2026-02-06T13:59:27Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -129,15 +129,28 @@ Region names are prefixed by country to avoid collisions:
 
 ## Adding New Countries with Subdivisions
 
-Pattern for adding a new country's subdivisions:
+Pattern for adding a new country's subdivisions (data-driven via SUB_CONFIGS):
 
 1. **In `countries.js`**: Add subdivision entries to the country's `subdivisions` array with all stats
-2. **In `index.js`**: Add region colors to `RC` with country-prefix if needed
-3. **In `Globe.jsx`**:
-   - Add TopoJSON URL constant at top
-   - Build lookup map at module level (e.g., `var XX_STATE = {};`)
-   - Add fetch to `Promise.all`
-   - Add `decodeTopo()` call for new source
-   - Skip country name in world painting
-   - Add subdivision painting loop
-   - Add border drawing loop
+2. **In `index.js`**:
+   - Add region colors to `RC` with country-prefix (e.g., `"BR Southeast": "#e74c3c"`)
+   - Add a `SUB_CONFIGS` entry with: `iso`, `url`, `objectName`, `codeField`, `extractCode`, `skipName`
+3. **If using local TopoJSON**: Place the `.json` file in `public/topo/` and use relative URL `/topo/{file}.json`
+4. **No changes needed in `Globe.jsx`** - it iterates SUB_CONFIGS generically
+
+### SUB_CONFIGS Entry Template
+```js
+{
+  iso: "XXX",
+  url: "/topo/xx-subdivisions.json",
+  objectName: "ne_10m_admin_1_states_provinces",
+  codeField: "sc",
+  extractCode: function(f) {
+    var code = f.properties && f.properties.iso_3166_2;
+    if (!code) return null;
+    var parts = code.split("-");
+    return parts.length > 1 ? parts[1] : code;
+  },
+  skipName: "Country Name"
+}
+```

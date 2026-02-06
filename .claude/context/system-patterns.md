@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-05T21:55:26Z
-version: 1.0
+last_updated: 2026-02-06T13:59:27Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -35,24 +35,34 @@ Country (t:"c")
 - `rg` = region, `cp` = capital, `ar` = area, `ch` = change, `ag` = age
 - `fp` = FIPS (US), `pc` = province code (Canada), `sc` = state code (Mexico/India)
 
-### Matching Strategies per Country
+### Data-Driven Subdivision Configuration (SUB_CONFIGS)
 
-Each country's subdivisions match to TopoJSON features differently:
-- **USA**: FIPS code (`fp`) matched against `f.id` padded to 2 digits
-- **Canada**: Province code (`pc` like "CA-ON") matched against `f.properties.id` or `f.id`
-- **Mexico**: State code (`sc`) matched against `f.properties.state_code` padded to 2 digits
-- **India**: State code (`sc`) matched against `f.properties.st_code` padded to 2 digits
+Subdivision handling is fully data-driven via `SUB_CONFIGS` array in `index.js`. Each config specifies:
+```js
+{
+  iso: "BRA",                    // Country ISO code
+  url: "/topo/br-states.json",   // TopoJSON source (CDN or local)
+  objectName: "ne_10m_admin_1...",// Object key in TopoJSON
+  codeField: "sc",               // Property name on subdivision data (fp/pc/sc)
+  extractCode: function(f) {},   // Extract matching code from TopoJSON feature
+  skipName: "Brazil",            // Country name to skip in world painting
+  skipFeature: function(f) {}    // Optional: filter out specific features
+}
+```
+
+Globe.jsx iterates `SUB_CONFIGS` generically for:
+1. Building lookup maps per country
+2. Fetching all TopoJSON sources in parallel
+3. Painting subdivisions on the canvas texture
+4. Drawing subdivision borders
+
+This replaced per-country hardcoded logic (FIPS, CA_PROV, MX_STATE, IN_STATE maps).
+
+### TopoJSON Sources
+- **CDN-hosted**: USA (us-atlas), Canada (Brideau gist), Mexico (diegovalle gist), India (india-maps-data), China (cn-atlas)
+- **Local files** (`public/topo/`): Brazil, Colombia, Peru, Argentina, Venezuela, Chile, Ecuador, Bolivia, Paraguay, Uruguay, Guyana, Suriname, French Guiana
 
 ## Design Patterns
-
-### Module-level Lookup Maps
-Lookup maps are built once at import time, outside the React component:
-```js
-var FIPS = {};     // US states by FIPS code
-var CA_PROV = {};  // Canadian provinces by province code
-var MX_STATE = {}; // Mexican states by state code
-var IN_STATE = {}; // Indian states by state code
-```
 
 ### Pre-create and Toggle Visibility
 All subdivision markers are created during initial data load but set to `visible: false`. Expanding a country toggles visibility without creating/destroying Three.js objects.
@@ -77,9 +87,9 @@ The `sorted` useMemo produces a flat array of `{entry, depth}` objects:
 1. Create 4096x2048 canvas
 2. Set up d3 equirectangular projection fitted to canvas size
 3. Paint ocean gradient
-4. Paint each country (skip countries with subdivision data)
-5. Paint each country's subdivisions individually (US states, CA provinces, MX states, IN states)
-6. Draw country borders, then subdivision borders for each country
+4. Paint each country (skip countries listed in SUB_CONFIGS `skipName`)
+5. For each SUB_CONFIGS entry: paint subdivisions individually using lookup maps
+6. Draw country borders, then subdivision borders for each SUB_CONFIGS entry
 7. Draw graticule
 8. Convert canvas to Three.js CanvasTexture → apply to sphere
 
@@ -111,10 +121,10 @@ All CSS is written as inline React style objects. No CSS modules, styled-compone
 ## Data Flow
 
 ```
-countries.js → index.js (computed exports) → Globe.jsx
-                                               ├── Fetch 5 TopoJSON sources
-                                               ├── Paint canvas texture
-                                               ├── Create Three.js scene
-                                               ├── Build markers + lookup maps
-                                               └── React UI (sidebar, tooltip, detail)
+countries.js → index.js (computed exports + SUB_CONFIGS) → Globe.jsx
+                                                            ├── Fetch world TopoJSON + all SUB_CONFIGS URLs
+                                                            ├── Build per-country lookup maps from SUB_CONFIGS
+                                                            ├── Paint canvas texture (generic subdivision loop)
+                                                            ├── Create Three.js scene + markers
+                                                            └── React UI (sidebar, tooltip, detail)
 ```

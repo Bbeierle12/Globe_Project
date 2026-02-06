@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T11:06:50Z
-version: 1.1
+last_updated: 2026-02-06T13:59:27Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -13,13 +13,14 @@ author: Claude Code PM System
 
 ## Recent Commits
 
+- `adf6794` Refactor code structure for improved readability and maintainability
 - `576f1d3` feat: expand country region colors and add subdivisions for Canada, Mexico, and India
 - `8510bce` feat: add country data and mapping, implement main application structure
 
 ## Outstanding Changes (Uncommitted)
 
-- `src/data/countries.js` - Modified: 174 countries (was 99), 132 subdivisions (USA 51, India 36, Mexico 32, Canada 13)
-- `src/data/idMap.js` - Modified: 174 feature ID mappings (was 97), Sudan code fix (736→729), added 77 new entries
+- `src/data/index.js` - Modified: Added 10 South American SUB_CONFIGS (ARG, VEN, CHL, ECU, BOL, PRY, URY, GUY, SUR, GUF) and region colors
+- 10 untracked TopoJSON files in `public/topo/` for South American countries (ar, bo, cl, ec, gf, gy, py, sr, uy, ve)
 
 ## Completed Work
 
@@ -33,41 +34,37 @@ author: Claude Code PM System
 - Updated raycaster to use visible markers ref
 - Updated sidebar, tooltip, and detail panel for hierarchical display
 
-### Canada Subdivisions
-- Added 13 provinces/territories with full demographic stats
-- Added Canadian region colors (Atlantic, Central, Prairies, West Coast, North)
-- Fetches Brideau's TopoJSON for province boundaries
-- Paints provinces individually, draws province borders
+### Canada, Mexico, India Subdivisions
+- Canada: 13 provinces/territories with Brideau TopoJSON
+- Mexico: 32 states with diegovalle TopoJSON
+- India: 36 states/UTs with india-maps-data TopoJSON
+- Region color systems for each country
 
-### Mexico Subdivisions
-- Added 32 states with full demographic stats
-- Added Mexican region colors (MX Central, MX Northwest, MX Northeast, MX West, MX South, MX Southeast)
-- Fetches diegovalle's TopoJSON for state boundaries
-- Paints states individually, draws state borders
+### Full Globe Coverage
+- 174 countries/territories with ID_MAP entries (full world-atlas coverage)
+- Fixed Sudan code mismatch (736→729)
+- Added 75+ new countries/territories to both ID_MAP and COUNTRIES
 
-### India Subdivisions
-- Added 36 states and union territories with full demographic stats
-- Added Indian region colors (IN North, IN South, IN East, IN West, IN Central, IN Northeast)
-- Fetches india-maps-data TopoJSON for state boundaries
-- Paints states individually, draws state borders
+### Major Refactor: Data-Driven SUB_CONFIGS (adf6794)
+- Replaced per-country hardcoded lookup maps (FIPS, CA_PROV, MX_STATE, IN_STATE) with generic `SUB_CONFIGS` array
+- Each config specifies: iso, url, objectName, codeField, extractCode function
+- Globe.jsx now iterates SUB_CONFIGS for fetching, painting, and border drawing
+- Added China subdivisions (34 provinces via cn-atlas)
+- Added Brazil subdivisions (27 states via local topo)
+- Added Colombia subdivisions (33 departments via local topo)
+- Added Peru subdivisions (26 regions via local topo)
+- Local TopoJSON files stored in `public/topo/` (3 committed: br, co, pe)
+- Total: 8 countries with subdivisions, 251 total subdivisions
 
-### Missing Countries (Round 1)
-- Identified 18 countries in world TopoJSON with no data entries
-- Added all 18: Bolivia, Botswana, Burkina Faso, Burundi, Chad, Cuba, Ivory Coast, Laos, Libya, Malawi, Namibia, Rwanda, Senegal, Somalia, South Sudan, Tunisia, Zambia, Zimbabwe
-
-### Full Globe Coverage (Round 2)
-- Identified 78 additional countries/territories in world-atlas TopoJSON with no ID_MAP entry (grayed out shapes)
-- Fixed Sudan code mismatch: ID_MAP key `736` → `729` to match world-atlas
-- Added Ecuador (`218`) to ID_MAP (was already in COUNTRIES but had no feature ID mapping)
-- Added 75 new countries/territories to both ID_MAP and COUNTRIES:
-  - 69 sovereign nations (Albania, Azerbaijan, Belarus, Benin, Bulgaria, etc.)
-  - 6 territories (Puerto Rico, Greenland, French Guiana, New Caledonia, Western Sahara, Mayotte, Falkland Islands)
-  - 1 special area (Antarctica with 0 population)
-- Total coverage: 174 ID_MAP entries, 174 COUNTRIES entries, 132 subdivisions
+### South American Expansion (In Progress)
+- Prepared SUB_CONFIGS for 10 additional South American countries (uncommitted)
+- Created 10 TopoJSON files in `public/topo/` (untracked)
+- Added region colors for: AR, VE, CL, EC, BO, PY, UY, GY, SR, GF
+- Subdivision data in countries.js still needed for these 10 countries
 
 ## Immediate Next Steps
 
-1. **Commit current changes** - Significant uncommitted work across 2 files (countries.js, idMap.js)
-2. **Add subdivisions for more countries** - 170 countries still have empty subdivision arrays
-3. **Priority countries for next phase:** China, Brazil, Germany, France, Australia, Japan, Indonesia, UK, South Korea, Pakistan (per original plan Phase 2)
-4. **Find TopoJSON sources** for each new country's internal boundaries
+1. **Add subdivision data** to countries.js for the 10 prepared South American countries
+2. **Commit South American expansion** once subdivision data is complete
+3. **Continue Phase 2:** Germany, France, Australia, Japan, Indonesia, UK, South Korea, Pakistan
+4. **156 countries** still have empty subdivision arrays

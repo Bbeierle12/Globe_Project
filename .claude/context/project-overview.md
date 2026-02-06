@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T11:06:50Z
-version: 1.1
+last_updated: 2026-02-06T13:59:27Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -9,18 +9,18 @@ author: Claude Code PM System
 
 ## Summary
 
-Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 174 countries/territories and 132 subdivisions. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture.
+Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 174 countries/territories and 251 subdivisions. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture. Subdivision handling uses a data-driven `SUB_CONFIGS` pattern for easy extensibility.
 
 ## Current State
 
 The application is functional with:
 - Full 3D globe rendering with population-based coloring
 - 174 countries/territories with markers, sidebar entries, and detail panels (full world-atlas coverage)
-- 4 countries with complete subdivision data and geographical boundaries:
-  - USA (51 states)
-  - India (36 states/UTs)
-  - Mexico (32 states)
-  - Canada (13 provinces/territories)
+- 8 countries with complete subdivision data and geographical boundaries:
+  - USA (51 states), India (36 states/UTs), China (34 provinces)
+  - Colombia (33 departments), Mexico (32 states), Brazil (27 states)
+  - Peru (26 regions), Canada (13 provinces/territories)
+- 10 more South American countries prepared (configs + TopoJSON, awaiting data)
 - Expand/collapse UI for viewing subdivisions
 - Search with auto-expansion
 - Hover tooltips and selection detail panel
@@ -38,8 +38,13 @@ The application is functional with:
 | Canada subdivisions + boundaries | Complete |
 | Mexico subdivisions + boundaries | Complete |
 | India subdivisions + boundaries | Complete |
+| China subdivisions + boundaries | Complete |
+| Brazil subdivisions + boundaries | Complete |
+| Colombia subdivisions + boundaries | Complete |
+| Peru subdivisions + boundaries | Complete |
 | Full globe country coverage (174) | Complete |
-| Remaining 170 countries' subdivisions | Not started |
+| South American expansion (10 countries) | In progress |
+| Remaining 156 countries' subdivisions | Not started |
 | Mobile/touch support | Not implemented |
 
 ## External Data Sources
@@ -51,10 +56,13 @@ The application is functional with:
 | Brideau gist | gist.githubusercontent.com/Brideau/... | Canadian province boundaries |
 | diegovalle gist | gist.githubusercontent.com/diegovalle/... | Mexican state boundaries |
 | india-maps-data | cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/... | Indian state boundaries |
+| cn-atlas | cdn.jsdelivr.net/npm/cn-atlas@0.1.2/cn-atlas.json | Chinese province boundaries |
+| Local TopoJSON | /topo/*.json | Brazil, Colombia, Peru + 10 SA countries |
 
 ## Integration Points
 
-- **CDN-hosted TopoJSON** - 5 separate fetches at startup via `Promise.all`
+- **CDN-hosted TopoJSON** - 6 CDN fetches at startup (world + 5 country atlases)
+- **Local TopoJSON** - Up to 13 local fetches for countries without CDN sources
 - **No backend** - Fully client-side application
 - **No API calls** - All population data is embedded in source code
 - **Vite dev server** - Hot module replacement during development
