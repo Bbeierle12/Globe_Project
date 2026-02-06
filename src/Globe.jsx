@@ -1,38 +1,25 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import * as THREE from "three";
 import * as d3 from "d3";
-import { COUNTRIES, ID_MAP, ISO_MAP, MP, WORLD_POP, RC, findCountry } from "./data/index.js";
+import { COUNTRIES, ID_MAP, ISO_MAP, MP, WORLD_POP, RC, SUB_CONFIGS, findCountry } from "./data/index.js";
 
 var R = 1.8;
 var EARTH_TEX = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
-var US_TEX = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
-var CA_TEX = "https://gist.githubusercontent.com/Brideau/2391df60938462571ca9/raw/f5a1f3b47ff671eaf2fb7e7b798bacfc6962606a/canadaprovtopo.json";
-var MX_TEX = "https://gist.githubusercontent.com/diegovalle/5129746/raw/c1c35e439b1d5e688bca20b79f0e53a1fc12bf9e/mx_tj.json";
-var IN_TEX = "https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/topojson/india.json";
 
-var FIPS = {};
-var usa = ISO_MAP["USA"];
-if (usa) {
-  usa.subdivisions.forEach(function(s) { FIPS[s.fp] = s; });
-}
+var SUB_MAPS = {};
+SUB_CONFIGS.forEach(function(cfg) {
+  var country = ISO_MAP[cfg.iso];
+  if (!country || !country.subdivisions.length) return;
+  var map = {};
+  country.subdivisions.forEach(function(s) {
+    var code = s[cfg.codeField];
+    if (code) map[code] = s;
+  });
+  SUB_MAPS[cfg.iso] = map;
+});
 
-var CA_PROV = {};
-var can = ISO_MAP["CAN"];
-if (can) {
-  can.subdivisions.forEach(function(s) { if (s.pc) CA_PROV[s.pc] = s; });
-}
-
-var MX_STATE = {};
-var mex = ISO_MAP["MEX"];
-if (mex) {
-  mex.subdivisions.forEach(function(s) { if (s.sc) MX_STATE[s.sc] = s; });
-}
-
-var IN_STATE = {};
-var ind = ISO_MAP["IND"];
-if (ind) {
-  ind.subdivisions.forEach(function(s) { if (s.sc) IN_STATE[s.sc] = s; });
-}
+var SKIP_NAMES = {};
+SUB_CONFIGS.forEach(function(cfg) { if (cfg.skipName) SKIP_NAMES[cfg.skipName] = true; });
 
 function fmt(n) {
   if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
@@ -128,12 +115,38 @@ function decodeTopo(topo, objectName) {
   return { type: "FeatureCollection", features: features };
 }
 
+function findHighlightFeatures(sel, geo) {
+  if (!sel) return [];
+  if (sel.t === "c") {
+    return geo.world.features.filter(function(f) {
+      var name = ID_MAP[String(f.id)];
+      if (!name || !sel.al) return false;
+      var nl = name.toLowerCase();
+      return sel.al.some(function(a) { return a.toLowerCase() === nl; });
+    });
+  }
+  var cfg = null;
+  for (var i = 0; i < SUB_CONFIGS.length; i++) {
+    if (SUB_CONFIGS[i].iso === sel.parentIso) { cfg = SUB_CONFIGS[i]; break; }
+  }
+  if (!cfg || !geo.subs[cfg.iso]) return [];
+  var selCode = sel[cfg.codeField];
+  if (!selCode) return [];
+  return geo.subs[cfg.iso].features.filter(function(f) {
+    if (cfg.skipFeature && cfg.skipFeature(f)) return false;
+    return cfg.extractCode(f) === selCode;
+  });
+}
+
 export default function Globe() {
   var mountRef = useRef(null);
   var hovRef = useRef(null);
   var arRef = useRef(true);
   var mkRef = useRef({ m: [], dm: new Map(), subMarkers: new Map() });
   var visibleMkRef = useRef([]);
+  var hlRef = useRef(null);
+  var geoRef = useRef(null);
+  var selRef = useRef(null);
 
   var [hov, setHov] = useState(null);
   var [sel, setSel] = useState(null);
@@ -210,6 +223,35 @@ export default function Globe() {
 
   useEffect(function() { hovRef.current = hov; }, [hov]);
   useEffect(function() { arRef.current = autoR; }, [autoR]);
+  useEffect(function() { selRef.current = sel; }, [sel]);
+
+  useEffect(function() {
+    var hl = hlRef.current;
+    var geo = geoRef.current;
+    if (!hl || !geo) return;
+    hl.ctx.clearRect(0, 0, hl.cv.width, hl.cv.height);
+    if (!sel) {
+      hl.tex.needsUpdate = true;
+      return;
+    }
+    var features = findHighlightFeatures(sel, geo);
+    if (features.length > 0) {
+      hl.ctx.save();
+      hl.ctx.shadowColor = "#4d9ae8";
+      hl.ctx.shadowBlur = 20;
+      hl.ctx.strokeStyle = "rgba(77,154,232,0.9)";
+      hl.ctx.lineWidth = 3;
+      for (var pass = 0; pass < 2; pass++) {
+        features.forEach(function(f) {
+          hl.ctx.beginPath();
+          hl.pathGen(f);
+          hl.ctx.stroke();
+        });
+      }
+      hl.ctx.restore();
+    }
+    hl.tex.needsUpdate = true;
+  }, [sel]);
 
   useEffect(function() {
     var el = mountRef.current;
@@ -323,25 +365,18 @@ export default function Globe() {
       window.addEventListener("resize", onRs);
 
       // Now fetch the topo data
-      Promise.all([
-        fetch(EARTH_TEX).then(function(r) { return r.json(); }),
-        fetch(US_TEX).then(function(r) { return r.json(); }),
-        fetch(CA_TEX).then(function(r) { return r.json(); }),
-        fetch(MX_TEX).then(function(r) { return r.json(); }),
-        fetch(IN_TEX).then(function(r) { return r.json(); })
-      ]).then(function(results) {
-        if (dead) return;
-        var worldTopo = results[0];
-        var usTopo = results[1];
-        var caTopo = results[2];
-        var mxTopo = results[3];
-        var inTopo = results[4];
+      var fetches = [fetch(EARTH_TEX).then(function(r) { return r.json(); })];
+      SUB_CONFIGS.forEach(function(cfg) {
+        fetches.push(fetch(cfg.url).then(function(r) { return r.json(); }));
+      });
 
-        var worldGeo = decodeTopo(worldTopo, "countries");
-        var stateGeo = decodeTopo(usTopo, "states");
-        var provGeo = decodeTopo(caTopo, "canadaprov");
-        var mxGeo = decodeTopo(mxTopo, "states");
-        var inGeo = decodeTopo(inTopo, "states");
+      Promise.all(fetches).then(function(results) {
+        if (dead) return;
+        var worldGeo = decodeTopo(results[0], "countries");
+        var subGeos = {};
+        SUB_CONFIGS.forEach(function(cfg, i) {
+          subGeos[cfg.iso] = decodeTopo(results[i + 1], cfg.objectName);
+        });
 
         // Paint the texture
         var cw = 4096, ch = 2048;
@@ -361,11 +396,11 @@ export default function Globe() {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, cw, ch);
 
-        // Fill countries (skip US, Canada, Mexico - subdivisions fill them)
+        // Fill countries (skip those with subdivision configs)
         worldGeo.features.forEach(function(f) {
           if (!f.geometry) return;
           var name = ID_MAP[String(f.id)];
-          if (name === "United States of America" || name === "Canada" || name === "Mexico" || name === "India") return;
+          if (SKIP_NAMES[name]) return;
           ctx.beginPath();
           pathGen(f);
           var cd = findCountry(f.id);
@@ -378,68 +413,26 @@ export default function Globe() {
           ctx.fill();
         });
 
-        // Fill US states individually
-        stateGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          var fips = String(f.id).padStart(2, "0");
-          var st = FIPS[fips];
-          ctx.beginPath();
-          pathGen(f);
-          if (st) {
-            var rgb = pClr(st.p);
-            ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-          } else {
-            ctx.fillStyle = "#1a3050";
-          }
-          ctx.fill();
-        });
-
-        // Fill Canadian provinces individually
-        provGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          var provId = (f.properties && f.properties.id) || f.id || null;
-          var prov = provId ? CA_PROV[provId] : null;
-          ctx.beginPath();
-          pathGen(f);
-          if (prov) {
-            var rgb = pClr(prov.p);
-            ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-          } else {
-            ctx.fillStyle = "#1a3050";
-          }
-          ctx.fill();
-        });
-
-        // Fill Mexican states individually
-        mxGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          var sc = f.properties && f.properties.state_code != null ? String(f.properties.state_code).padStart(2, "0") : null;
-          var st = sc ? MX_STATE[sc] : null;
-          ctx.beginPath();
-          pathGen(f);
-          if (st) {
-            var rgb = pClr(st.p);
-            ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-          } else {
-            ctx.fillStyle = "#1a3050";
-          }
-          ctx.fill();
-        });
-
-        // Fill Indian states individually
-        inGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          var sc = f.properties && f.properties.st_code != null ? String(f.properties.st_code).padStart(2, "0") : null;
-          var st = sc ? IN_STATE[sc] : null;
-          ctx.beginPath();
-          pathGen(f);
-          if (st) {
-            var rgb = pClr(st.p);
-            ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-          } else {
-            ctx.fillStyle = "#1a3050";
-          }
-          ctx.fill();
+        // Fill subdivisions for all configured countries
+        SUB_CONFIGS.forEach(function(cfg) {
+          var geo = subGeos[cfg.iso];
+          if (!geo) return;
+          var map = SUB_MAPS[cfg.iso] || {};
+          geo.features.forEach(function(f) {
+            if (!f.geometry) return;
+            if (cfg.skipFeature && cfg.skipFeature(f)) return;
+            var code = cfg.extractCode(f);
+            var sub = code ? map[code] : null;
+            ctx.beginPath();
+            pathGen(f);
+            if (sub) {
+              var rgb = pClr(sub.p);
+              ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+            } else {
+              ctx.fillStyle = "#1a3050";
+            }
+            ctx.fill();
+          });
         });
 
         // Country borders
@@ -452,44 +445,19 @@ export default function Globe() {
           ctx.stroke();
         });
 
-        // US state borders
+        // Subdivision borders for all configured countries
         ctx.strokeStyle = "rgba(200,230,255,0.5)";
         ctx.lineWidth = 1;
-        stateGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          ctx.beginPath();
-          pathGen(f);
-          ctx.stroke();
-        });
-
-        // Canadian province borders
-        ctx.strokeStyle = "rgba(200,230,255,0.5)";
-        ctx.lineWidth = 1;
-        provGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          ctx.beginPath();
-          pathGen(f);
-          ctx.stroke();
-        });
-
-        // Mexican state borders
-        ctx.strokeStyle = "rgba(200,230,255,0.5)";
-        ctx.lineWidth = 1;
-        mxGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          ctx.beginPath();
-          pathGen(f);
-          ctx.stroke();
-        });
-
-        // Indian state borders
-        ctx.strokeStyle = "rgba(200,230,255,0.5)";
-        ctx.lineWidth = 1;
-        inGeo.features.forEach(function(f) {
-          if (!f.geometry) return;
-          ctx.beginPath();
-          pathGen(f);
-          ctx.stroke();
+        SUB_CONFIGS.forEach(function(cfg) {
+          var geo = subGeos[cfg.iso];
+          if (!geo) return;
+          geo.features.forEach(function(f) {
+            if (!f.geometry) return;
+            if (cfg.skipFeature && cfg.skipFeature(f)) return;
+            ctx.beginPath();
+            pathGen(f);
+            ctx.stroke();
+          });
         });
 
         // Graticule
@@ -504,6 +472,44 @@ export default function Globe() {
         tex.needsUpdate = true;
         earthMesh.material = new THREE.MeshPhongMaterial({ map: tex, shininess: 12 });
         earthMesh.material.needsUpdate = true;
+
+        // Highlight overlay sphere
+        var hlCv = document.createElement("canvas");
+        hlCv.width = cw;
+        hlCv.height = ch;
+        var hlCtx = hlCv.getContext("2d");
+        var hlTex = new THREE.CanvasTexture(hlCv);
+        hlTex.needsUpdate = true;
+        var hlPathGen = d3.geoPath(proj, hlCtx);
+        var hlMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(R + 0.002, 96, 64),
+          new THREE.MeshBasicMaterial({ map: hlTex, transparent: true, depthWrite: false })
+        );
+        gg.add(hlMesh);
+        hlRef.current = { cv: hlCv, ctx: hlCtx, tex: hlTex, pathGen: hlPathGen };
+        geoRef.current = { world: worldGeo, subs: subGeos };
+
+        // Draw initial highlight if something is already selected
+        var curSel = selRef.current;
+        if (curSel) {
+          var features = findHighlightFeatures(curSel, geoRef.current);
+          if (features.length > 0) {
+            hlCtx.save();
+            hlCtx.shadowColor = "#4d9ae8";
+            hlCtx.shadowBlur = 20;
+            hlCtx.strokeStyle = "rgba(77,154,232,0.9)";
+            hlCtx.lineWidth = 3;
+            for (var pass = 0; pass < 2; pass++) {
+              features.forEach(function(f) {
+                hlCtx.beginPath();
+                hlPathGen(f);
+                hlCtx.stroke();
+              });
+            }
+            hlCtx.restore();
+            hlTex.needsUpdate = true;
+          }
+        }
 
         // Create country markers (always visible)
         var countryMarkers = [];

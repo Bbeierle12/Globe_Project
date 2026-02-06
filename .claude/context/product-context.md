@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-05T21:55:26Z
-version: 1.0
+last_updated: 2026-02-06T11:06:50Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -48,10 +48,11 @@ Countries with subdivision data have internal borders painted on the globe textu
 
 ## Data Coverage
 
-- **99 countries** with population, coordinates, and aliases
+- **174 countries/territories** with population, coordinates, and aliases (full world-atlas TopoJSON coverage)
 - **132 subdivisions** across 4 countries (USA: 51, India: 36, Mexico: 32, Canada: 13)
 - Subdivision stats include: population, density, region, capital, area, growth rate, median age
-- 95 countries have empty subdivision arrays (future expansion)
+- 170 countries have empty subdivision arrays (future expansion)
+- Includes 6 territories (Puerto Rico, Greenland, French Guiana, New Caledonia, Western Sahara, Mayotte, Falkland Islands) and Antarctica
 
 ## User Interactions
 

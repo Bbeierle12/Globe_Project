@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-05T21:55:26Z
-version: 1.0
+last_updated: 2026-02-06T11:06:50Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -9,13 +9,13 @@ author: Claude Code PM System
 
 ## Summary
 
-Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 99 countries and 132 subdivisions. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture.
+Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 174 countries/territories and 132 subdivisions. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture.
 
 ## Current State
 
 The application is functional with:
 - Full 3D globe rendering with population-based coloring
-- 99 countries with markers, sidebar entries, and detail panels
+- 174 countries/territories with markers, sidebar entries, and detail panels (full world-atlas coverage)
 - 4 countries with complete subdivision data and geographical boundaries:
   - USA (51 states)
   - India (36 states/UTs)
@@ -38,7 +38,8 @@ The application is functional with:
 | Canada subdivisions + boundaries | Complete |
 | Mexico subdivisions + boundaries | Complete |
 | India subdivisions + boundaries | Complete |
-| Remaining 95 countries' subdivisions | Not started |
+| Full globe country coverage (174) | Complete |
+| Remaining 170 countries' subdivisions | Not started |
 | Mobile/touch support | Not implemented |
 
 ## External Data Sources

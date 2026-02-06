@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-05T21:55:26Z
-version: 1.0
+last_updated: 2026-02-06T11:06:50Z
+version: 1.1
 author: Claude Code PM System
 ---
 
@@ -50,8 +50,8 @@ The single monolithic component containing all application logic:
 - React state and UI rendering (sidebar, tooltip, detail panel)
 - Mouse/wheel event handlers for interaction
 
-### `src/data/countries.js` (239 lines)
-Hierarchical data array where each country contains:
+### `src/data/countries.js` (~315 lines)
+Hierarchical data array with 174 countries/territories where each country contains:
 - Basic info: name, population, coordinates, type, aliases, ISO code
 - Subdivision label and embedded subdivisions array
 - Subdivisions have demographic stats (density, region, capital, area, growth, age)
@@ -65,7 +65,7 @@ Computed exports derived from countries data:
 - `findCountry()` - Feature ID → country object resolver
 
 ### `src/data/idMap.js` (4 lines)
-Maps TopoJSON numeric feature IDs to country names for matching world atlas features to country data.
+Maps 174 TopoJSON numeric feature IDs to country names for matching world atlas features to country data. Covers all features in the countries-110m.json world atlas.
 
 ## File Naming Patterns
 
