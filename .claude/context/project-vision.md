@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.1
+last_updated: 2026-02-06T14:46:15Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -25,7 +25,16 @@ Add subdivisions and boundaries for high-population/priority countries:
 - Brazil (27 States) - **Complete**
 - Colombia (33 Departments) - **Complete**
 - Peru (26 Regions) - **Complete**
-- Argentina, Venezuela, Chile, Ecuador, Bolivia, Paraguay, Uruguay, Guyana, Suriname, French Guiana - **Configs prepared, data pending**
+- Argentina (24 Provinces) - **Complete**
+- Venezuela (25 States) - **Complete**
+- Chile (16 Regions) - **Complete**
+- Ecuador (24 Provinces) - **Complete**
+- Bolivia (9 Departments) - **Complete**
+- Paraguay (18 Departments) - **Complete**
+- Uruguay (19 Departments) - **Complete**
+- Guyana (10 Regions) - **Complete**
+- Suriname (10 Districts) - **Complete**
+- French Guiana (1 Territory) - **Complete**
 - Germany (States) - Planned
 - France (Regions) - Planned
 - Australia (States/Territories) - Planned

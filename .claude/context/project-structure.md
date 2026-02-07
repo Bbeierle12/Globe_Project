@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.2
+last_updated: 2026-02-06T14:46:15Z
+version: 1.3
 author: Claude Code PM System
 ---
 
@@ -65,11 +65,11 @@ The single monolithic component containing all application logic:
 - React state and UI rendering (sidebar, tooltip, detail panel)
 - Mouse/wheel event handlers for interaction
 
-### `src/data/countries.js` (~437 lines)
+### `src/data/countries.js` (~604 lines)
 Hierarchical data array with 174 countries/territories where each country contains:
 - Basic info: name, population, coordinates, type, aliases, ISO code
 - Subdivision label and embedded subdivisions array
-- 8 countries have populated subdivisions (251 total subdivisions)
+- 18 countries have populated subdivisions (407 total subdivisions)
 - Subdivisions have demographic stats (density, region, capital, area, growth, age)
 
 ### `src/data/index.js` (~253 lines)

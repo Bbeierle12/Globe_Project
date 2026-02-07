@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.2
+last_updated: 2026-02-06T14:46:15Z
+version: 1.3
 author: Claude Code PM System
 ---
 
@@ -20,6 +20,7 @@ author: Claude Code PM System
 ## Outstanding Changes (Uncommitted)
 
 - `src/data/index.js` - Modified: Added 10 South American SUB_CONFIGS (ARG, VEN, CHL, ECU, BOL, PRY, URY, GUY, SUR, GUF) and region colors
+- `src/data/countries.js` - Modified: Added subdivision data for 10 South American countries (156 new subdivisions)
 - 10 untracked TopoJSON files in `public/topo/` for South American countries (ar, bo, cl, ec, gf, gy, py, sr, uy, ve)
 
 ## Completed Work
@@ -56,15 +57,19 @@ author: Claude Code PM System
 - Local TopoJSON files stored in `public/topo/` (3 committed: br, co, pe)
 - Total: 8 countries with subdivisions, 251 total subdivisions
 
-### South American Expansion (In Progress)
+### South American Expansion (Complete)
 - Prepared SUB_CONFIGS for 10 additional South American countries (uncommitted)
 - Created 10 TopoJSON files in `public/topo/` (untracked)
 - Added region colors for: AR, VE, CL, EC, BO, PY, UY, GY, SR, GF
-- Subdivision data in countries.js still needed for these 10 countries
+- Added subdivision data for all 10 countries (156 new subdivisions):
+  - Argentina: 24 provinces, Venezuela: 25 states, Chile: 16 regions
+  - Ecuador: 24 provinces, Bolivia: 9 departments, Paraguay: 18 departments
+  - Uruguay: 19 departments, Guyana: 10 regions, Suriname: 10 districts
+  - French Guiana: 1 territory
+- Total: 18 countries with subdivisions, 407 total subdivisions
 
 ## Immediate Next Steps
 
-1. **Add subdivision data** to countries.js for the 10 prepared South American countries
-2. **Commit South American expansion** once subdivision data is complete
-3. **Continue Phase 2:** Germany, France, Australia, Japan, Indonesia, UK, South Korea, Pakistan
-4. **156 countries** still have empty subdivision arrays
+1. **Commit South American expansion** (all data complete, uncommitted)
+2. **Continue Phase 2:** Germany, France, Australia, Japan, Indonesia, UK, South Korea, Pakistan
+3. **156 countries** still have empty subdivision arrays

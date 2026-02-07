@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.2
+last_updated: 2026-02-06T14:46:15Z
+version: 1.3
 author: Claude Code PM System
 ---
 
@@ -9,18 +9,20 @@ author: Claude Code PM System
 
 ## Summary
 
-Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 174 countries/territories and 251 subdivisions. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture. Subdivision handling uses a data-driven `SUB_CONFIGS` pattern for easy extensibility.
+Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 174 countries/territories and 407 subdivisions. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture. Subdivision handling uses a data-driven `SUB_CONFIGS` pattern for easy extensibility.
 
 ## Current State
 
 The application is functional with:
 - Full 3D globe rendering with population-based coloring
 - 174 countries/territories with markers, sidebar entries, and detail panels (full world-atlas coverage)
-- 8 countries with complete subdivision data and geographical boundaries:
+- 18 countries with complete subdivision data and geographical boundaries:
   - USA (51 states), India (36 states/UTs), China (34 provinces)
   - Colombia (33 departments), Mexico (32 states), Brazil (27 states)
-  - Peru (26 regions), Canada (13 provinces/territories)
-- 10 more South American countries prepared (configs + TopoJSON, awaiting data)
+  - Peru (26 regions), Venezuela (25 states), Argentina (24 provinces)
+  - Ecuador (24 provinces), Uruguay (19 departments), Paraguay (18 departments)
+  - Chile (16 regions), Canada (13 provinces/territories), Guyana (10 regions)
+  - Suriname (10 districts), Bolivia (9 departments), French Guiana (1 territory)
 - Expand/collapse UI for viewing subdivisions
 - Search with auto-expansion
 - Hover tooltips and selection detail panel
@@ -43,7 +45,7 @@ The application is functional with:
 | Colombia subdivisions + boundaries | Complete |
 | Peru subdivisions + boundaries | Complete |
 | Full globe country coverage (174) | Complete |
-| South American expansion (10 countries) | In progress |
+| South American expansion (10 countries) | Complete |
 | Remaining 156 countries' subdivisions | Not started |
 | Mobile/touch support | Not implemented |
 
