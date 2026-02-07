@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.1
+last_updated: 2026-02-06T19:14:57Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -18,7 +18,7 @@ To provide an intuitive, visually rich way to explore and compare population sta
 ## Success Criteria
 
 1. Globe renders smoothly with all 174 countries displayed as interactive markers
-2. Countries with subdivisions (8 countries currently) expand to show sub-national markers and list items
+2. Countries with subdivisions (22 countries currently) expand to show sub-national markers and list items
 3. TopoJSON boundaries render correctly for all countries with subdivision data
 4. Population statistics, growth rates, density, and other metrics display accurately
 5. Search filters both countries and subdivisions with auto-expansion

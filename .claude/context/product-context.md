@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T14:46:15Z
-version: 1.3
+last_updated: 2026-02-06T19:14:57Z
+version: 1.4
 author: Claude Code PM System
 ---
 
@@ -58,14 +58,18 @@ Countries with subdivision data have internal borders painted on the globe textu
 - Guyana: 10 regions via local TopoJSON
 - Suriname: 10 districts via local TopoJSON
 - Bolivia: 9 departments via local TopoJSON
+- Nigeria: 37 states via local TopoJSON
+- Indonesia: 33 provinces via local TopoJSON
+- Bangladesh: 8 divisions via geoBoundaries TopoJSON (local)
+- Pakistan: 7 provinces via local TopoJSON
 - French Guiana: 1 territory via local TopoJSON
 
 ## Data Coverage
 
 - **174 countries/territories** with population, coordinates, and aliases (full world-atlas TopoJSON coverage)
-- **407 subdivisions** across 18 countries (USA: 51, India: 36, China: 34, Colombia: 33, Mexico: 32, Brazil: 27, Peru: 26, Venezuela: 25, Argentina: 24, Ecuador: 24, Uruguay: 19, Paraguay: 18, Chile: 16, Canada: 13, Guyana: 10, Suriname: 10, Bolivia: 9, French Guiana: 1)
+- **492 subdivisions** across 22 countries (USA: 51, Nigeria: 37, India: 36, China: 33, Indonesia: 33, Colombia: 33, Mexico: 32, Brazil: 27, Peru: 26, Venezuela: 25, Argentina: 24, Ecuador: 24, Uruguay: 19, Paraguay: 18, Chile: 16, Canada: 13, Guyana: 10, Suriname: 10, Bolivia: 9, Bangladesh: 8, Pakistan: 7, French Guiana: 1)
 - Subdivision stats include: population, density, region, capital, area, growth rate, median age
-- 156 countries have empty subdivision arrays (future expansion)
+- 152 countries have empty subdivision arrays (future expansion)
 - Includes 6 territories (Puerto Rico, Greenland, French Guiana, New Caledonia, Western Sahara, Mayotte, Falkland Islands) and Antarctica
 
 ## User Interactions

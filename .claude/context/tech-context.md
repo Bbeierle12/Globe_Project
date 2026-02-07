@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.1
+last_updated: 2026-02-06T19:14:57Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -66,9 +66,9 @@ Custom `decodeTopo()` function (no topojson-client library) handles:
 - Canvas converted to Three.js `CanvasTexture` applied to sphere
 
 ### Data Fetching
-- World TopoJSON + all `SUB_CONFIGS` URLs fetched in parallel via `Promise.all` (currently up to 19 sources)
+- World TopoJSON + all `SUB_CONFIGS` URLs fetched in parallel via `Promise.all` (currently up to 23 sources)
 - CDN sources: world-atlas, us-atlas, Brideau (CA), diegovalle (MX), india-maps-data (IN), cn-atlas (CN)
-- Local sources: `public/topo/*.json` for Brazil, Colombia, Peru + 10 South American countries
+- Local sources: `public/topo/*.json` for 17 countries (SA + Indonesia, Pakistan, Nigeria, Bangladesh)
 - All fetches happen inside a single `useEffect` with cleanup via `dead` flag
 - Error handling shows user-visible error message
 

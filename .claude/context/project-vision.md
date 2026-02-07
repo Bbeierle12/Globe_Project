@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T14:46:15Z
-version: 1.2
+last_updated: 2026-02-06T19:14:57Z
+version: 1.3
 author: Claude Code PM System
 ---
 
@@ -39,13 +39,15 @@ Add subdivisions and boundaries for high-population/priority countries:
 - France (Regions) - Planned
 - Australia (States/Territories) - Planned
 - Japan (Prefectures) - Planned
-- Indonesia (Provinces) - Planned
+- Indonesia (33 Provinces) - **Complete**
+- Pakistan (7 Provinces) - **Complete**
+- Nigeria (37 States) - **Complete**
+- Bangladesh (8 Divisions) - **Complete**
 - United Kingdom (Countries/Regions) - Planned
 - South Korea (Provinces) - Planned
-- Pakistan (Provinces) - Planned
 
 ### Phase 3: Global Coverage (Future)
-Add remaining 156 countries' subdivisions progressively, prioritized by population.
+Add remaining 152 countries' subdivisions progressively, prioritized by population.
 
 ### Phase 4: Enhanced Features (Future)
 Potential expansions:

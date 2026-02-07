@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.1
+last_updated: 2026-02-06T19:14:57Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -60,7 +60,8 @@ This replaced per-country hardcoded logic (FIPS, CA_PROV, MX_STATE, IN_STATE map
 
 ### TopoJSON Sources
 - **CDN-hosted**: USA (us-atlas), Canada (Brideau gist), Mexico (diegovalle gist), India (india-maps-data), China (cn-atlas)
-- **Local files** (`public/topo/`): Brazil, Colombia, Peru, Argentina, Venezuela, Chile, Ecuador, Bolivia, Paraguay, Uruguay, Guyana, Suriname, French Guiana
+- **Local files** (`public/topo/`): Brazil, Colombia, Peru, Argentina, Venezuela, Chile, Ecuador, Bolivia, Paraguay, Uruguay, Guyana, Suriname, French Guiana, Indonesia, Pakistan, Nigeria, Bangladesh
+- **geoBoundaries** (`public/topo/bd-divisions.json`): Bangladesh (used instead of Natural Earth which is missing Mymensingh division)
 
 ## Design Patterns
 

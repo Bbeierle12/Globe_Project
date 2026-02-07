@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T14:46:15Z
-version: 1.3
+last_updated: 2026-02-06T19:14:57Z
+version: 1.4
 author: Claude Code PM System
 ---
 
@@ -27,16 +27,20 @@ Globe_Project/
 │       ├── br-states.json    # Brazil states
 │       ├── co-departments.json # Colombia departments
 │       ├── pe-regions.json   # Peru regions
-│       ├── ar-provinces.json # Argentina provinces (untracked)
-│       ├── bo-departments.json # Bolivia departments (untracked)
-│       ├── cl-regions.json   # Chile regions (untracked)
-│       ├── ec-provinces.json # Ecuador provinces (untracked)
-│       ├── gf-territory.json # French Guiana (untracked)
-│       ├── gy-regions.json   # Guyana regions (untracked)
-│       ├── py-departments.json # Paraguay departments (untracked)
-│       ├── sr-districts.json # Suriname districts (untracked)
-│       ├── uy-departments.json # Uruguay departments (untracked)
-│       └── ve-states.json    # Venezuela states (untracked)
+│       ├── ar-provinces.json # Argentina provinces
+│       ├── bd-divisions.json # Bangladesh divisions (geoBoundaries source)
+│       ├── bo-departments.json # Bolivia departments
+│       ├── cl-regions.json   # Chile regions
+│       ├── ec-provinces.json # Ecuador provinces
+│       ├── gf-territory.json # French Guiana
+│       ├── gy-regions.json   # Guyana regions
+│       ├── id-provinces.json # Indonesia provinces
+│       ├── ng-states.json    # Nigeria states
+│       ├── pk-provinces.json # Pakistan provinces
+│       ├── py-departments.json # Paraguay departments
+│       ├── sr-districts.json # Suriname districts
+│       ├── uy-departments.json # Uruguay departments
+│       └── ve-states.json    # Venezuela states
 ├── dist/                     # Build output
 ├── node_modules/             # Dependencies
 ├── src/
@@ -65,20 +69,20 @@ The single monolithic component containing all application logic:
 - React state and UI rendering (sidebar, tooltip, detail panel)
 - Mouse/wheel event handlers for interaction
 
-### `src/data/countries.js` (~604 lines)
+### `src/data/countries.js` (~660 lines)
 Hierarchical data array with 174 countries/territories where each country contains:
 - Basic info: name, population, coordinates, type, aliases, ISO code
 - Subdivision label and embedded subdivisions array
-- 18 countries have populated subdivisions (407 total subdivisions)
+- 22 countries have populated subdivisions (492 total subdivisions)
 - Subdivisions have demographic stats (density, region, capital, area, growth, age)
 
-### `src/data/index.js` (~253 lines)
+### `src/data/index.js` (~290 lines)
 Data hub with computed exports and subdivision configuration:
 - `ISO_MAP` - ISO code → country object lookup
 - `MP` - Maximum population (for scaling)
 - `WORLD_POP` - Total world population
-- `RC` - Region color map (US, CA, MX, IN, CN, BR, CO, PE, AR, VE, CL, EC, BO, PY, UY, GY, SR, GF regions)
-- `SUB_CONFIGS` - Array of 18 subdivision configuration objects (iso, url, objectName, codeField, extractCode)
+- `RC` - Region color map (US, CA, MX, IN, CN, BR, CO, PE, AR, VE, CL, EC, BO, PY, UY, GY, SR, GF, ID, PK, NG, BD regions)
+- `SUB_CONFIGS` - Array of 22 subdivision configuration objects (iso, url, objectName, codeField, extractCode)
 - `findCountry()` - Feature ID → country object resolver
 
 ### `src/data/idMap.js` (4 lines)

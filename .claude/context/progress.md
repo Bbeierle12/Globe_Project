@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T14:46:15Z
-version: 1.3
+last_updated: 2026-02-06T19:14:57Z
+version: 1.4
 author: Claude Code PM System
 ---
 
@@ -13,15 +13,18 @@ author: Claude Code PM System
 
 ## Recent Commits
 
+- `6da81d0` Add GeoJSON topology for Pakistan provinces
+- `a6395a6` Refactor code structure for improved readability and maintainability
 - `adf6794` Refactor code structure for improved readability and maintainability
 - `576f1d3` feat: expand country region colors and add subdivisions for Canada, Mexico, and India
 - `8510bce` feat: add country data and mapping, implement main application structure
 
 ## Outstanding Changes (Uncommitted)
 
-- `src/data/index.js` - Modified: Added 10 South American SUB_CONFIGS (ARG, VEN, CHL, ECU, BOL, PRY, URY, GUY, SUR, GUF) and region colors
-- `src/data/countries.js` - Modified: Added subdivision data for 10 South American countries (156 new subdivisions)
-- 10 untracked TopoJSON files in `public/topo/` for South American countries (ar, bo, cl, ec, gf, gy, py, sr, uy, ve)
+- `src/data/index.js` - Modified: Added BGD SUB_CONFIGS entry and BD region colors (BD Central, BD West, BD East, BD South)
+- `src/data/countries.js` - Modified: Added 8 Bangladesh division subdivisions
+- `public/topo/bd-divisions.json` - New: Bangladesh divisions TopoJSON (8 divisions from geoBoundaries, 9 KB)
+- `public/topo/ng-states.json` - New: Nigeria states TopoJSON
 
 ## Completed Work
 
@@ -58,18 +61,23 @@ author: Claude Code PM System
 - Total: 8 countries with subdivisions, 251 total subdivisions
 
 ### South American Expansion (Complete)
-- Prepared SUB_CONFIGS for 10 additional South American countries (uncommitted)
-- Created 10 TopoJSON files in `public/topo/` (untracked)
+- Added SUB_CONFIGS for 10 additional South American countries
+- Created 10 TopoJSON files in `public/topo/`
 - Added region colors for: AR, VE, CL, EC, BO, PY, UY, GY, SR, GF
-- Added subdivision data for all 10 countries (156 new subdivisions):
-  - Argentina: 24 provinces, Venezuela: 25 states, Chile: 16 regions
-  - Ecuador: 24 provinces, Bolivia: 9 departments, Paraguay: 18 departments
-  - Uruguay: 19 departments, Guyana: 10 regions, Suriname: 10 districts
-  - French Guiana: 1 territory
-- Total: 18 countries with subdivisions, 407 total subdivisions
+- Added subdivision data for all 10 countries (156 new subdivisions)
+
+### Asian & African Expansion (In Progress)
+- Indonesia: 33 provinces via local TopoJSON
+- Pakistan: 7 provinces/territories via local TopoJSON (committed in `6da81d0`)
+- Nigeria: 37 states via local TopoJSON (uncommitted)
+- Bangladesh: 8 divisions via geoBoundaries TopoJSON (uncommitted)
+  - Used geoBoundaries instead of Natural Earth (NE missing Mymensingh/BD-H)
+  - `shapeISO` renamed to `iso_3166_2` for standard extractCode compatibility
+  - 4 region colors: BD Central, BD West, BD East, BD South
+- Total: 22 countries with subdivisions, 492 total subdivisions
 
 ## Immediate Next Steps
 
-1. **Commit South American expansion** (all data complete, uncommitted)
-2. **Continue Phase 2:** Germany, France, Australia, Japan, Indonesia, UK, South Korea, Pakistan
-3. **156 countries** still have empty subdivision arrays
+1. **Commit current changes** (Bangladesh + Nigeria data, uncommitted)
+2. **Continue Phase 2:** Germany, France, Australia, Japan, UK, South Korea
+3. **152 countries** still have empty subdivision arrays
