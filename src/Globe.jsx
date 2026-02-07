@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import * as THREE from "three";
 import * as d3 from "d3";
-import { COUNTRIES, ID_MAP, ISO_MAP, MP, WORLD_POP, RC, SUB_CONFIGS, findCountry } from "./data/index.js";
+import { COUNTRIES, ID_MAP, ISO_MAP, MP, WORLD_POP, RC, SUB_CONFIGS, COUNTY_CONFIG, findCountry } from "./data/index.js";
+import { COUNTY_FILE_MAP } from "./data/us-counties/index.js";
 
 var R = 1.8;
 var EARTH_TEX = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -125,6 +126,12 @@ function findHighlightFeatures(sel, geo) {
       return sel.al.some(function(a) { return a.toLowerCase() === nl; });
     });
   }
+  if (sel.t === "county") {
+    if (!geo.counties) return [];
+    return geo.counties.features.filter(function(f) {
+      return String(f.id) === sel.fips;
+    });
+  }
   var cfg = null;
   for (var i = 0; i < SUB_CONFIGS.length; i++) {
     if (SUB_CONFIGS[i].iso === sel.parentIso) { cfg = SUB_CONFIGS[i]; break; }
@@ -155,10 +162,93 @@ export default function Globe() {
   var [autoR, setAutoR] = useState(true);
   var [err, setErr] = useState(null);
   var [expanded, setExpanded] = useState({});
+  var [expandedStates, setExpandedStates] = useState({});
+  var [countyLoading, setCountyLoading] = useState({});
+  var [loadedCounties, setLoadedCounties] = useState({});
+  var countyTopoRef = useRef({ loaded: false, data: null, promise: null });
+  var countyMkRef = useRef(new Map());
 
   var toggleExpand = useCallback(function(iso) {
     setExpanded(function(prev) { var n = {}; for (var k in prev) n[k] = prev[k]; n[iso] = !n[iso]; return n; });
   }, []);
+
+  var toggleExpandState = useCallback(function(fp) {
+    setExpandedStates(function(prev) {
+      var n = {}; for (var k in prev) n[k] = prev[k]; n[fp] = !n[fp]; return n;
+    });
+
+    // If collapsing, clean up county markers
+    if (expandedStates[fp]) {
+      var markers = countyMkRef.current.get(fp);
+      if (markers) {
+        markers.forEach(function(mk) {
+          mk.visible = false;
+          if (mk.parent) mk.parent.remove(mk);
+          mk.geometry.dispose();
+          mk.material.dispose();
+        });
+        countyMkRef.current.delete(fp);
+        // Rebuild visible markers
+        var all = mkRef.current.m.slice();
+        COUNTRIES.forEach(function(c) {
+          if (expanded[c.iso]) {
+            var subs = mkRef.current.subMarkers.get(c.iso);
+            if (subs) all = all.concat(subs);
+          }
+        });
+        countyMkRef.current.forEach(function(cms) { all = all.concat(cms); });
+        visibleMkRef.current = all;
+      }
+      return;
+    }
+
+    // If already loaded, just show markers
+    if (loadedCounties[fp]) return;
+
+    // Load county data + topology in parallel
+    setCountyLoading(function(prev) { var n = {}; for (var k in prev) n[k] = prev[k]; n[fp] = true; return n; });
+
+    var topoPromise;
+    if (countyTopoRef.current.loaded) {
+      topoPromise = Promise.resolve(countyTopoRef.current.data);
+    } else if (countyTopoRef.current.promise) {
+      topoPromise = countyTopoRef.current.promise;
+    } else {
+      countyTopoRef.current.promise = fetch(COUNTY_CONFIG.topoUrl)
+        .then(function(r) { return r.json(); })
+        .then(function(topo) {
+          var geo = decodeTopo(topo, COUNTY_CONFIG.objectName);
+          countyTopoRef.current.data = geo;
+          countyTopoRef.current.loaded = true;
+          if (geoRef.current) geoRef.current.counties = geo;
+          return geo;
+        });
+      topoPromise = countyTopoRef.current.promise;
+    }
+
+    var dataLoader = COUNTY_FILE_MAP[fp];
+    if (!dataLoader) {
+      setCountyLoading(function(prev) { var n = {}; for (var k in prev) n[k] = prev[k]; delete n[fp]; return n; });
+      return;
+    }
+
+    Promise.all([topoPromise, dataLoader()]).then(function(results) {
+      var countyGeo = results[0];
+      var mod = results[1];
+      var varName = "COUNTIES_" + fp;
+      var counties = mod[varName] || [];
+
+      if (geoRef.current && !geoRef.current.counties) {
+        geoRef.current.counties = countyGeo;
+      }
+
+      setLoadedCounties(function(prev) { var n = {}; for (var k in prev) n[k] = prev[k]; n[fp] = counties; return n; });
+      setCountyLoading(function(prev) { var n = {}; for (var k in prev) n[k] = prev[k]; delete n[fp]; return n; });
+    }).catch(function(err) {
+      console.error("Failed to load counties for state " + fp + ":", err);
+      setCountyLoading(function(prev) { var n = {}; for (var k in prev) n[k] = prev[k]; delete n[fp]; return n; });
+    });
+  }, [expanded, expandedStates, loadedCounties]);
 
   // Hierarchical sorted list
   var sorted = useMemo(function() {
@@ -177,6 +267,11 @@ export default function Globe() {
       return c.subdivisions.some(function(s) { return matchEntry(s); });
     }
 
+    function hasCountyMatch(s) {
+      if (s.parentIso !== "USA" || !s.fp || !loadedCounties[s.fp]) return false;
+      return loadedCounties[s.fp].some(function(c) { return matchEntry(c); });
+    }
+
     if (q) {
       countries = countries.filter(function(c) {
         return matchEntry(c) || hasSubMatch(c);
@@ -192,15 +287,26 @@ export default function Globe() {
       if (showSubs && c.subdivisions && c.subdivisions.length > 0) {
         var subs = c.subdivisions.slice().sort(function(a, b) { return b.p - a.p; });
         if (q) {
-          subs = subs.filter(function(s) { return matchEntry(s); });
+          subs = subs.filter(function(s) { return matchEntry(s) || hasCountyMatch(s); });
         }
         subs.forEach(function(s) {
           list.push({ entry: s, depth: 1 });
+          // County level (depth 2) for US states
+          var showCounties = s.parentIso === "USA" && s.fp && (expandedStates[s.fp] || (q && hasCountyMatch(s)));
+          if (showCounties && loadedCounties[s.fp]) {
+            var counties = loadedCounties[s.fp].slice().sort(function(a, b) { return b.p - a.p; });
+            if (q) {
+              counties = counties.filter(function(ct) { return matchEntry(ct); });
+            }
+            counties.forEach(function(ct) {
+              list.push({ entry: ct, depth: 2 });
+            });
+          }
         });
       }
     });
     return list;
-  }, [search, expanded]);
+  }, [search, expanded, expandedStates, loadedCounties]);
 
   // Toggle subdivision marker visibility when expanded changes
   useEffect(function() {
@@ -210,7 +316,7 @@ export default function Globe() {
       if (!markers) return;
       markers.forEach(function(mk) { mk.visible = !!expanded[c.iso]; });
     });
-    // Rebuild visible markers list for raycaster
+    // Rebuild visible markers list for raycaster (include county markers)
     var all = mkRef.current.m.slice();
     COUNTRIES.forEach(function(c) {
       if (expanded[c.iso]) {
@@ -218,8 +324,49 @@ export default function Globe() {
         if (subs) all = all.concat(subs);
       }
     });
+    countyMkRef.current.forEach(function(cms) { all = all.concat(cms); });
     visibleMkRef.current = all;
   }, [expanded]);
+
+  // Create/manage county markers when counties load or expandedStates changes
+  useEffect(function() {
+    var gg = mountRef.current && mountRef.current.__gg;
+    if (!gg) return;
+
+    Object.keys(expandedStates).forEach(function(fp) {
+      if (!expandedStates[fp]) return;
+      if (countyMkRef.current.has(fp)) return; // Already created
+      var counties = loadedCounties[fp];
+      if (!counties) return;
+
+      var markers = [];
+      counties.forEach(function(ct) {
+        var sz = 0.005 + Math.pow(ct.p / MP, 0.4) * 0.012;
+        var geo = new THREE.CircleGeometry(sz, 8);
+        var mat = new THREE.MeshBasicMaterial({ color: 0xaaddff, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+        var mk = new THREE.Mesh(geo, mat);
+        var pos = ll2v(ct.la, ct.lo, R + 0.006);
+        mk.position.copy(pos);
+        mk.lookAt(new THREE.Vector3(pos.x * 2, pos.y * 2, pos.z * 2));
+        mk.visible = true;
+        gg.add(mk);
+        markers.push(mk);
+        mkRef.current.dm.set(mk.id, ct);
+      });
+      countyMkRef.current.set(fp, markers);
+    });
+
+    // Rebuild visible markers to include county markers
+    var all = mkRef.current.m.slice();
+    COUNTRIES.forEach(function(c) {
+      if (expanded[c.iso]) {
+        var subs = mkRef.current.subMarkers.get(c.iso);
+        if (subs) all = all.concat(subs);
+      }
+    });
+    countyMkRef.current.forEach(function(cms) { all = all.concat(cms); });
+    visibleMkRef.current = all;
+  }, [expandedStates, loadedCounties, expanded]);
 
   useEffect(function() { hovRef.current = hov; }, [hov]);
   useEffect(function() { arRef.current = autoR; }, [autoR]);
@@ -230,6 +377,32 @@ export default function Globe() {
     var geo = geoRef.current;
     if (!hl || !geo) return;
     hl.ctx.clearRect(0, 0, hl.cv.width, hl.cv.height);
+
+    // Draw county boundaries for any expanded states
+    if (geo.counties) {
+      var drewCounties = false;
+      Object.keys(expandedStates).forEach(function(fp) {
+        if (!expandedStates[fp]) return;
+        var stateFeatures = geo.counties.features.filter(function(f) {
+          return String(f.id).substring(0, 2) === fp;
+        });
+        if (stateFeatures.length > 0) {
+          drewCounties = true;
+          hl.ctx.save();
+          hl.ctx.strokeStyle = "rgba(170,200,240,0.35)";
+          hl.ctx.lineWidth = 0.8;
+          stateFeatures.forEach(function(f) {
+            if (!f.geometry) return;
+            hl.ctx.beginPath();
+            hl.pathGen(f);
+            hl.ctx.stroke();
+          });
+          hl.ctx.restore();
+        }
+      });
+      if (drewCounties) hl.tex.needsUpdate = true;
+    }
+
     if (!sel) {
       hl.tex.needsUpdate = true;
       return;
@@ -251,7 +424,7 @@ export default function Globe() {
       hl.ctx.restore();
     }
     hl.tex.needsUpdate = true;
-  }, [sel]);
+  }, [sel, expandedStates]);
 
   useEffect(function() {
     var el = mountRef.current;
@@ -284,6 +457,7 @@ export default function Globe() {
 
       var gg = new THREE.Group();
       scene.add(gg);
+      el.__gg = gg;
 
       // Atmosphere glow
       gg.add(new THREE.Mesh(
@@ -577,7 +751,9 @@ export default function Globe() {
   }, []);
 
   var isSt = sel && sel.t === "s";
+  var isCty = sel && sel.t === "county";
   var selParent = isSt && sel.parentIso ? ISO_MAP[sel.parentIso] : null;
+  var selParentState = isCty && sel.parentFp ? (ISO_MAP["USA"] ? ISO_MAP["USA"].subdivisions.find(function(s) { return s.fp === sel.parentFp; }) : null) : null;
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "#050810", display: "flex", fontFamily: "'Segoe UI',system-ui,sans-serif", color: "#b8c8dd", overflow: "hidden", position: "relative" }}>
@@ -599,8 +775,8 @@ export default function Globe() {
         <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", background: "rgba(6,12,24,0.92)", border: "1px solid rgba(60,130,240,0.2)", borderRadius: 8, padding: "6px 14px", zIndex: 10, textAlign: "center", pointerEvents: "none" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: "#dce6f2" }}>{hov.n}</span>
-            <span style={{ fontSize: 7, fontWeight: 700, padding: "1px 5px", borderRadius: 3, color: hov.t === "s" ? "#5ea8f0" : "#7ec87e", background: hov.t === "s" ? "rgba(94,168,240,0.12)" : "rgba(126,200,126,0.12)" }}>
-              {hov.t === "s" ? (hov.parentIso && ISO_MAP[hov.parentIso] ? ISO_MAP[hov.parentIso].subdivisionLabel.toUpperCase() : "STATE") : "COUNTRY"}
+            <span style={{ fontSize: 7, fontWeight: 700, padding: "1px 5px", borderRadius: 3, color: hov.t === "county" ? "#aaddff" : (hov.t === "s" ? "#5ea8f0" : "#7ec87e"), background: hov.t === "county" ? "rgba(170,221,255,0.12)" : (hov.t === "s" ? "rgba(94,168,240,0.12)" : "rgba(126,200,126,0.12)") }}>
+              {hov.t === "county" ? "COUNTY" : (hov.t === "s" ? (hov.parentIso && ISO_MAP[hov.parentIso] ? ISO_MAP[hov.parentIso].subdivisionLabel.toUpperCase() : "STATE") : "COUNTRY")}
             </span>
           </div>
           <div style={{ fontSize: 18, fontWeight: 300, color: "#4d9ae8" }}>{hov.p.toLocaleString()}</div>
@@ -636,6 +812,7 @@ export default function Globe() {
           {(function() {
             var countryRank = 0;
             var subRank = 0;
+            var countyRank = 0;
             return sorted.map(function(item, i) {
               var d = item.entry;
               var depth = item.depth;
@@ -643,8 +820,12 @@ export default function Globe() {
               if (depth === 0) {
                 countryRank++;
                 subRank = 0;
-              } else {
+                countyRank = 0;
+              } else if (depth === 1) {
                 subRank++;
+                countyRank = 0;
+              } else {
+                countyRank++;
               }
 
               var pct = (d.p / MP) * 100;
@@ -652,14 +833,20 @@ export default function Globe() {
               var rgb = pClr(d.p);
               var clr = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
               var isSub = depth === 1;
+              var isCounty = depth === 2;
               var rCol = d.rg ? RC[d.rg] : null;
-              var hasSubs = !isSub && d.subdivisions && d.subdivisions.length > 0;
-              var isExp = !isSub && d.iso && expanded[d.iso];
+              var hasSubs = !isSub && !isCounty && d.subdivisions && d.subdivisions.length > 0;
+              var isExp = !isSub && !isCounty && d.iso && expanded[d.iso];
               var parentCountry = isSub && d.parentIso ? ISO_MAP[d.parentIso] : null;
+              var hasCounties = isSub && d.parentIso === "USA" && d.fp && COUNTY_FILE_MAP[d.fp];
+              var isStateExp = hasCounties && expandedStates[d.fp];
+              var isCountyLoading = hasCounties && countyLoading[d.fp];
+              var ml = isCounty ? 48 : (isSub ? 24 : 0);
+              var rank = isCounty ? countyRank : (isSub ? subRank : countryRank);
 
               return (
-                <div key={(d.parentIso || "") + d.n + d.t} onClick={function() { setSel(d); }}
-                  style={{ padding: "4px 7px", margin: "1px 0", borderRadius: 4, cursor: "pointer", background: isSel ? "rgba(58,128,224,0.08)" : "transparent", border: isSel ? "1px solid rgba(58,128,224,0.2)" : "1px solid transparent", marginLeft: isSub ? 24 : 0 }}>
+                <div key={(d.parentFp || d.parentIso || "") + d.n + d.t + (d.fips || "")} onClick={function() { setSel(d); }}
+                  style={{ padding: isCounty ? "2px 7px" : "4px 7px", margin: "1px 0", borderRadius: 4, cursor: "pointer", background: isSel ? "rgba(58,128,224,0.08)" : "transparent", border: isSel ? "1px solid rgba(58,128,224,0.2)" : "1px solid transparent", marginLeft: ml }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
                       {hasSubs && (
@@ -668,16 +855,24 @@ export default function Globe() {
                           &#9654;
                         </span>
                       )}
-                      {!hasSubs && !isSub && <span style={{ width: 12, flexShrink: 0 }} />}
-                      <span style={{ fontSize: 9, color: "#354a60", width: 20, textAlign: "right", fontWeight: 700, flexShrink: 0 }}>{isSub ? subRank : countryRank}</span>
-                      <div style={{ width: 6, height: 6, borderRadius: 2, background: clr, flexShrink: 0 }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: isSel ? "#4d9ae8" : "#a8b8cc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.n}</span>
+                      {hasCounties && (
+                        <span onClick={function(e) { e.stopPropagation(); toggleExpandState(d.fp); }}
+                          style={{ fontSize: 8, color: isCountyLoading ? "#4d9ae8" : "#4a6a88", cursor: "pointer", width: 12, textAlign: "center", flexShrink: 0, userSelect: "none", transition: "transform 0.15s", transform: isStateExp ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block" }}>
+                          {isCountyLoading ? "\u25CB" : "\u25B6"}
+                        </span>
+                      )}
+                      {!hasSubs && !isSub && !isCounty && <span style={{ width: 12, flexShrink: 0 }} />}
+                      {isSub && !hasCounties && <span style={{ width: 12, flexShrink: 0 }} />}
+                      <span style={{ fontSize: 9, color: "#354a60", width: 20, textAlign: "right", fontWeight: 700, flexShrink: 0 }}>{rank}</span>
+                      <div style={{ width: isCounty ? 4 : 6, height: isCounty ? 4 : 6, borderRadius: 2, background: clr, flexShrink: 0 }} />
+                      <span style={{ fontSize: isCounty ? 10 : 11, fontWeight: 600, color: isSel ? "#4d9ae8" : (isCounty ? "#8a9ab0" : "#a8b8cc"), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.n}</span>
                       {isSub && parentCountry && <span style={{ fontSize: 7, color: "#5ea8f0", background: "rgba(94,168,240,0.1)", padding: "0 3px", borderRadius: 2, flexShrink: 0 }}>{parentCountry.iso}</span>}
                       {isSub && rCol && <span style={{ fontSize: 7, color: rCol, background: rCol + "15", padding: "0 3px", borderRadius: 2, flexShrink: 0 }}>{d.rg.slice(0, 2)}</span>}
+                      {isCounty && <span style={{ fontSize: 7, color: "#6a7a8a", background: "rgba(106,122,138,0.1)", padding: "0 3px", borderRadius: 2, flexShrink: 0 }}>CTY</span>}
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#4d9ae8", flexShrink: 0, marginLeft: 4 }}>{fmt(d.p)}</span>
+                    <span style={{ fontSize: isCounty ? 10 : 11, fontWeight: 700, color: "#4d9ae8", flexShrink: 0, marginLeft: 4 }}>{fmt(d.p)}</span>
                   </div>
-                  <div style={{ height: 2, background: "rgba(40,60,100,0.12)", borderRadius: 2, marginLeft: hasSubs || (!isSub) ? 42 : 30, overflow: "hidden" }}>
+                  <div style={{ height: 2, background: "rgba(40,60,100,0.12)", borderRadius: 2, marginLeft: isCounty ? 24 : (hasSubs || (!isSub && !isCounty) ? 42 : 30), overflow: "hidden" }}>
                     <div style={{ width: pct + "%", height: "100%", borderRadius: 2, background: clr, opacity: 0.6 }} />
                   </div>
                 </div>
@@ -687,31 +882,35 @@ export default function Globe() {
         </div>
 
         {sel && (
-          <div style={{ borderTop: "1px solid rgba(50,100,180,0.1)", background: "rgba(6,14,28,0.85)", maxHeight: isSt ? 280 : 130, overflowY: "auto", padding: "8px 14px" }}>
+          <div style={{ borderTop: "1px solid rgba(50,100,180,0.1)", background: "rgba(6,14,28,0.85)", maxHeight: (isSt || isCty) ? 280 : 130, overflowY: "auto", padding: "8px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: "#dce6f2" }}>{sel.n}</span>
-              <span style={{ fontSize: 7, fontWeight: 700, padding: "1px 5px", borderRadius: 3, color: isSt ? "#5ea8f0" : "#7ec87e", background: isSt ? "rgba(94,168,240,0.12)" : "rgba(126,200,126,0.12)" }}>
-                {isSt ? (selParent ? selParent.subdivisionLabel.toUpperCase() : "STATE") : "COUNTRY"}
+              <span style={{ fontSize: 7, fontWeight: 700, padding: "1px 5px", borderRadius: 3, color: isCty ? "#aaddff" : (isSt ? "#5ea8f0" : "#7ec87e"), background: isCty ? "rgba(170,221,255,0.12)" : (isSt ? "rgba(94,168,240,0.12)" : "rgba(126,200,126,0.12)") }}>
+                {isCty ? "COUNTY" : (isSt ? (selParent ? selParent.subdivisionLabel.toUpperCase() : "STATE") : "COUNTRY")}
               </span>
-              {isSt && <span style={{ fontSize: 8, fontWeight: 600, color: tier(sel.p).c, background: tier(sel.p).c + "18", padding: "1px 5px", borderRadius: 3 }}>{tier(sel.p).l}</span>}
+              {(isSt || isCty) && <span style={{ fontSize: 8, fontWeight: 600, color: tier(sel.p).c, background: tier(sel.p).c + "18", padding: "1px 5px", borderRadius: 3 }}>{tier(sel.p).l}</span>}
+              {isCty && selParentState && <span style={{ fontSize: 7, color: "#5ea8f0", background: "rgba(94,168,240,0.1)", padding: "1px 4px", borderRadius: 2 }}>{selParentState.n}</span>}
             </div>
             <div style={{ fontSize: 20, fontWeight: 300, color: "#4d9ae8" }}>{sel.p.toLocaleString()}</div>
             <div style={{ fontSize: 10, color: "#4a6a88", marginBottom: 4 }}>
-              {isSt && selParent
-                ? (sel.p / selParent.p * 100).toFixed(2) + "% of " + selParent.n + " · " + (sel.p / WORLD_POP * 100).toFixed(2) + "% of world"
-                : (sel.p / WORLD_POP * 100).toFixed(2) + "% of world"}
+              {isCty && selParentState
+                ? (sel.p / selParentState.p * 100).toFixed(2) + "% of " + selParentState.n + " · " + (sel.p / WORLD_POP * 100).toFixed(4) + "% of world"
+                : (isSt && selParent
+                  ? (sel.p / selParent.p * 100).toFixed(2) + "% of " + selParent.n + " · " + (sel.p / WORLD_POP * 100).toFixed(2) + "% of world"
+                  : (sel.p / WORLD_POP * 100).toFixed(2) + "% of world")}
             </div>
 
-            {isSt && (
+            {(isSt || isCty) && (
               <div>
                 <div style={{ height: 1, background: "rgba(50,100,180,0.1)", margin: "4px 0 6px" }} />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 12px", fontSize: 10 }}>
                   {sel.rg != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>Region</span><span style={{ fontWeight: 600, color: RC[sel.rg] || "#b0c4da" }}>{sel.rg}</span></div>}
-                  {sel.cp != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>Capital</span><span style={{ fontWeight: 600, color: "#b0c4da" }}>{sel.cp}</span></div>}
+                  {sel.cp != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>{isCty ? "Seat" : "Capital"}</span><span style={{ fontWeight: 600, color: "#b0c4da" }}>{sel.cp || "N/A"}</span></div>}
                   {sel.dn != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>Density</span><span style={{ fontWeight: 600, color: "#b0c4da" }}>{sel.dn.toLocaleString()}/mi²</span></div>}
-                  {sel.ar != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>Area</span><span style={{ fontWeight: 600, color: "#b0c4da" }}>{sel.ar.toLocaleString()} mi²</span></div>}
+                  {sel.ar != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>Area</span><span style={{ fontWeight: 600, color: "#b0c4da" }}>{sel.ar.toLocaleString()} km²</span></div>}
                   {sel.ag != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>Med. Age</span><span style={{ fontWeight: 600, color: "#b0c4da" }}>{sel.ag}</span></div>}
-                  {sel.ch != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>2020-25</span><span style={{ fontWeight: 600, color: sel.ch >= 0 ? "#27ae60" : "#e74c3c" }}>{sel.ch >= 0 ? "+" : ""}{sel.ch}%</span></div>}
+                  {sel.fips != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>FIPS</span><span style={{ fontWeight: 600, color: "#b0c4da" }}>{sel.fips}</span></div>}
+                  {sel.ch != null && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#4a6a88" }}>2020-24</span><span style={{ fontWeight: 600, color: sel.ch >= 0 ? "#27ae60" : "#e74c3c" }}>{sel.ch >= 0 ? "+" : ""}{sel.ch}%</span></div>}
                 </div>
                 {sel.ch != null && (
                   <div style={{ marginTop: 6 }}>
