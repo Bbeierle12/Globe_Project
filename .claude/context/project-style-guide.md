@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T13:59:27Z
-version: 1.1
+last_updated: 2026-02-06T20:37:15Z
+version: 1.2
 author: Claude Code PM System
 ---
 
@@ -49,7 +49,7 @@ Population data uses abbreviated property names for compact file size:
 | `p` | population | 39355309 |
 | `la` | latitude | 36.78 |
 | `lo` | longitude | -119.42 |
-| `t` | type | "c" (country) or "s" (subdivision) |
+| `t` | type | "c" (country), "s" (subdivision), or "county" |
 | `al` | aliases | ["USA", "US"] |
 | `iso` | ISO code | "USA" |
 | `dn` | density (per mi²) | 252.6 |
@@ -58,9 +58,12 @@ Population data uses abbreviated property names for compact file size:
 | `ar` | area (mi²) | 163696 |
 | `ch` | change % (2020-25) | -0.5 |
 | `ag` | median age | 38.4 |
-| `fp` | FIPS code (US only) | "06" |
+| `fp` | FIPS code (US states) | "06" |
 | `pc` | province code (Canada) | "CA-ON" |
 | `sc` | state code (Mexico/India) | "15" |
+| `fips` | 5-digit FIPS (US counties) | "06037" |
+| `parentFp` | parent state FIPS | "06" |
+| `parentIso` | parent country ISO | "USA" |
 
 ### Function Names (Short)
 Internal utility functions use terse names:
@@ -84,6 +87,8 @@ Internal utility functions use terse names:
 - `arRef` - Auto-rotate flag
 - `mkRef` - Markers registry
 - `visibleMkRef` - Visible markers for raycaster
+- `countyTopoRef` - Cached county topology data
+- `countyMkRef` - County markers Map (keyed by state FIPS)
 
 ## CSS Style
 
@@ -106,6 +111,8 @@ All styles are written as React inline style objects directly on elements. No ex
 - Border: `rgba(50,100,180,0.08)` to `rgba(50,100,180,0.12)`
 - Success: `#27ae60`
 - Error/decline: `#e74c3c`
+- County marker: `#aaddff` (lighter blue, distinct from state markers)
+- County badge: `#aaddff` background
 
 ### Font
 - System font stack: `'Segoe UI', system-ui, sans-serif`
@@ -119,11 +126,14 @@ Region names are prefixed by country to avoid collisions:
 - Canadian regions: `Atlantic`, `Central`, `Prairies`, `West Coast`, `North` (no prefix)
 - Mexican regions: `MX Central`, `MX Northwest`, `MX Northeast`, `MX West`, `MX South`, `MX Southeast`
 - Indian regions: `IN North`, `IN South`, `IN East`, `IN West`, `IN Central`, `IN Northeast`
+- Russian regions: `RU Central`, `RU Northwest`, `RU South`, `RU Caucasus`, `RU Volga`, `RU Ural`, `RU Siberia`, `RU Far East`
 
 ## File Organization
 
 - One monolithic component (`Globe.jsx`) for all UI logic
 - Data separated into `src/data/` with barrel export via `index.js`
+- County data in `src/data/us-counties/` with lazy-loaded dynamic imports
+- WebGPU compute shaders in `src/webgpu/county-compute.js`
 - Lookup maps built at module scope (outside component)
 - Computed values (ISO_MAP, MP, WORLD_POP) in data index file
 
@@ -153,4 +163,19 @@ Pattern for adding a new country's subdivisions (data-driven via SUB_CONFIGS):
   },
   skipName: "Country Name"
 }
+```
+
+## Adding County Data for New US States
+
+Pattern for adding county data for additional US states:
+
+1. **Generate county file** using `generate_counties.py` script (in scratchpad) with Census Bureau data
+2. **Create `src/data/us-counties/{FIPS}.js`** exporting `COUNTIES_{FIPS}` array
+3. **Add entry to `src/data/us-counties/index.js`** in `COUNTY_FILE_MAP`
+4. **No changes needed in `Globe.jsx`** - it dynamically checks `COUNTY_FILE_MAP` for available states
+
+### County Data Entry Format
+```js
+{n:"County Name",p:123456,la:34.2,lo:-118.26,dn:2403.1,rg:"West",cp:null,
+ ar:10516,ch:-2.6,fips:"06037",t:"county",parentFp:"06",parentIso:"USA"}
 ```

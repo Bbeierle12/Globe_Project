@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T19:14:57Z
-version: 1.3
+last_updated: 2026-02-06T20:37:15Z
+version: 1.4
 author: Claude Code PM System
 ---
 
@@ -43,8 +43,15 @@ Add subdivisions and boundaries for high-population/priority countries:
 - Pakistan (7 Provinces) - **Complete**
 - Nigeria (37 States) - **Complete**
 - Bangladesh (8 Divisions) - **Complete**
+- Russia (85 Federal Subjects) - **Complete**
 - United Kingdom (Countries/Regions) - Planned
 - South Korea (Provinces) - Planned
+
+### Phase 2.5: County-Level Depth (In Progress)
+Third hierarchy level for US states (Country > State > County):
+- Top 10 states (1,040 counties) - **Complete** (CA, TX, FL, NY, PA, IL, OH, GA, NC, MI)
+- Remaining 40 states + DC - Planned
+- WebGPU compute shaders for boundary rendering - **Complete** (module created, integration pending)
 
 ### Phase 3: Global Coverage (Future)
 Add remaining 152 countries' subdivisions progressively, prioritized by population.
@@ -57,6 +64,7 @@ Potential expansions:
 - Data export capabilities
 - Mobile touch controls
 - Performance optimization for full global subdivision coverage
+- County-level depth for other countries (e.g., UK districts, France communes)
 
 ## Key Design Principles
 
@@ -65,6 +73,8 @@ Potential expansions:
 3. **Visual consistency** - Same color scale, marker style, and UI patterns across all countries
 4. **Graceful degradation** - Countries without subdivisions still function as first-class citizens
 5. **TopoJSON per country** - Each country's boundaries sourced independently from CDN/GitHub
+6. **Lazy loading** - County data loaded on demand via code-splitting, zero startup cost
+7. **GPU acceleration** - WebGPU compute shaders for heavy computation with automatic CPU fallback
 
 ## Constraints
 

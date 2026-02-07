@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T19:14:57Z
-version: 1.4
+last_updated: 2026-02-06T20:37:15Z
+version: 1.5
 author: Claude Code PM System
 ---
 
@@ -13,6 +13,8 @@ author: Claude Code PM System
 
 ## Recent Commits
 
+- `9847b90` Add WebGPU compute shaders for county rendering and population heat mapping
+- `6082237` Refactor code structure for improved readability and maintainability
 - `6da81d0` Add GeoJSON topology for Pakistan provinces
 - `a6395a6` Refactor code structure for improved readability and maintainability
 - `adf6794` Refactor code structure for improved readability and maintainability
@@ -21,10 +23,7 @@ author: Claude Code PM System
 
 ## Outstanding Changes (Uncommitted)
 
-- `src/data/index.js` - Modified: Added BGD SUB_CONFIGS entry and BD region colors (BD Central, BD West, BD East, BD South)
-- `src/data/countries.js` - Modified: Added 8 Bangladesh division subdivisions
-- `public/topo/bd-divisions.json` - New: Bangladesh divisions TopoJSON (8 divisions from geoBoundaries, 9 KB)
-- `public/topo/ng-states.json` - New: Nigeria states TopoJSON
+None - working tree is clean.
 
 ## Completed Work
 
@@ -66,18 +65,40 @@ author: Claude Code PM System
 - Added region colors for: AR, VE, CL, EC, BO, PY, UY, GY, SR, GF
 - Added subdivision data for all 10 countries (156 new subdivisions)
 
-### Asian & African Expansion (In Progress)
+### Asian & African Expansion (Complete)
 - Indonesia: 33 provinces via local TopoJSON
-- Pakistan: 7 provinces/territories via local TopoJSON (committed in `6da81d0`)
-- Nigeria: 37 states via local TopoJSON (uncommitted)
-- Bangladesh: 8 divisions via geoBoundaries TopoJSON (uncommitted)
+- Pakistan: 7 provinces/territories via local TopoJSON
+- Nigeria: 37 states via local TopoJSON
+- Bangladesh: 8 divisions via geoBoundaries TopoJSON
   - Used geoBoundaries instead of Natural Earth (NE missing Mymensingh/BD-H)
   - `shapeISO` renamed to `iso_3166_2` for standard extractCode compatibility
   - 4 region colors: BD Central, BD West, BD East, BD South
-- Total: 22 countries with subdivisions, 492 total subdivisions
+- Russia: 85 federal subjects via local TopoJSON
+  - 8 region colors: RU Central, RU Northwest, RU South, RU Caucasus, RU Volga, RU Ural, RU Siberia, RU Far East
+- Total: 22 countries with subdivisions, 492+ total subdivisions
+
+### US County-Level Subdivisions (Complete)
+- Added third hierarchy level: Country > State > County
+- 1,040 counties across top 10 states (CA, TX, FL, NY, PA, IL, OH, GA, NC, MI)
+- County data sourced from US Census Bureau CO-EST2024 population estimates + 2024 Gazetteer
+- Lazy-loaded via Vite dynamic imports (code-split per state)
+- County topology from CDN: `us-atlas@3/counties-10m.json`
+- New state variables: `expandedStates`, `countyLoading`, `loadedCounties`
+- Sidebar supports depth-0 (country), depth-1 (state), depth-2 (county) hierarchy
+- County markers created dynamically on state expansion, disposed on collapse
+- County boundary overlay rendering on highlight mesh
+- Detail panel extended for county type with FIPS display and parent state percentage
+
+### WebGPU Compute Shaders (Complete)
+- Created `src/webgpu/county-compute.js` with GPU feature detection and CPU fallback
+- Population heat map compute shader (WGSL): maps county populations to 6-color gradient in parallel
+- Arc transform compute shader (WGSL): delta-decodes + transforms TopoJSON arc coordinates
+- Three.js continues using WebGLRenderer; WebGPU used only for compute
+- CPU fallback: `computePopulationColorsCPU()` and existing `decodeTopo()` when WebGPU unavailable
 
 ## Immediate Next Steps
 
-1. **Commit current changes** (Bangladesh + Nigeria data, uncommitted)
-2. **Continue Phase 2:** Germany, France, Australia, Japan, UK, South Korea
-3. **152 countries** still have empty subdivision arrays
+1. **Continue Phase 2:** Germany, France, Australia, Japan, UK, South Korea subdivisions
+2. **Remaining 40 US states** county data (Phase 2 of county expansion)
+3. **Wire WebGPU compute** into Globe.jsx rendering pipeline (module created but not yet integrated)
+4. **152 countries** still have empty subdivision arrays

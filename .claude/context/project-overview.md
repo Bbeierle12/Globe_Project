@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T19:14:57Z
-version: 1.4
+last_updated: 2026-02-06T20:37:15Z
+version: 1.5
 author: Claude Code PM System
 ---
 
@@ -9,7 +9,7 @@ author: Claude Code PM System
 
 ## Summary
 
-Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 174 countries/territories and 492 subdivisions. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture. Subdivision handling uses a data-driven `SUB_CONFIGS` pattern for easy extensibility.
+Population Globe is a React + Three.js web application that renders an interactive 3D globe showing population data for 174 countries/territories, 492+ subdivisions, and 1,040 US counties. Countries can be expanded to reveal their states/provinces with geographical boundaries painted on the globe texture, and US states can be further expanded to show county-level data. Subdivision handling uses a data-driven `SUB_CONFIGS` pattern for easy extensibility. WebGPU compute shaders are available for heavy boundary rendering and population calculations with CPU fallback.
 
 ## Current State
 
@@ -17,7 +17,7 @@ The application is functional with:
 - Full 3D globe rendering with population-based coloring
 - 174 countries/territories with markers, sidebar entries, and detail panels (full world-atlas coverage)
 - 22 countries with complete subdivision data and geographical boundaries:
-  - USA (51 states), Nigeria (37 states), India (36 states/UTs)
+  - Russia (85 subjects), USA (51 states), Nigeria (37 states), India (36 states/UTs)
   - China (33 provinces), Indonesia (33 provinces), Colombia (33 departments)
   - Mexico (32 states), Brazil (27 states), Peru (26 regions)
   - Venezuela (25 states), Argentina (24 provinces), Ecuador (24 provinces)
@@ -25,7 +25,10 @@ The application is functional with:
   - Canada (13 provinces/territories), Guyana (10 regions), Suriname (10 districts)
   - Bolivia (9 departments), Bangladesh (8 divisions), Pakistan (7 provinces)
   - French Guiana (1 territory)
-- Expand/collapse UI for viewing subdivisions
+- Three-level hierarchy: Country > State > County (1,040 counties across 10 US states)
+- Lazy-loaded county data via Vite dynamic imports
+- WebGPU compute shaders for population heat mapping and arc transforms (with CPU fallback)
+- Expand/collapse UI for viewing subdivisions and counties
 - Search with auto-expansion
 - Hover tooltips and selection detail panel
 
@@ -52,6 +55,10 @@ The application is functional with:
 | Pakistan subdivisions + boundaries | Complete |
 | Nigeria subdivisions + boundaries | Complete |
 | Bangladesh subdivisions + boundaries | Complete |
+| Russia subdivisions + boundaries | Complete |
+| US county-level subdivisions (top 10 states) | Complete |
+| WebGPU compute shaders | Complete |
+| Remaining US states county data | Not started |
 | Remaining 152 countries' subdivisions | Not started |
 | Mobile/touch support | Not implemented |
 
@@ -66,12 +73,17 @@ The application is functional with:
 | india-maps-data | cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/... | Indian state boundaries |
 | cn-atlas | cdn.jsdelivr.net/npm/cn-atlas@0.1.2/cn-atlas.json | Chinese province boundaries |
 | geoBoundaries | github.com/wmgeolab/geoBoundaries | Bangladesh divisions (CC-BY 4.0) |
-| Local TopoJSON | /topo/*.json | Brazil, Colombia, Peru + 10 SA + ID, PK, NG, BD |
+| us-atlas counties | cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json | US county boundaries (lazy-loaded) |
+| US Census Bureau | CO-EST2024 + 2024 Gazetteer | County population, coordinates, area |
+| Local TopoJSON | /topo/*.json | Brazil, Colombia, Peru + 10 SA + ID, PK, NG, BD, RU |
 
 ## Integration Points
 
 - **CDN-hosted TopoJSON** - 6 CDN fetches at startup (world + 5 country atlases)
-- **Local TopoJSON** - Up to 17 local fetches for countries without CDN sources
+- **CDN county topology** - 1 lazy fetch on first county expansion (~822KB, ~200KB gzipped)
+- **Local TopoJSON** - Up to 18 local fetches for countries without CDN sources
+- **Lazy-loaded county data** - Vite code-split modules loaded on demand per state
+- **WebGPU compute** - Optional GPU acceleration for boundary rendering (CPU fallback)
 - **No backend** - Fully client-side application
 - **No API calls** - All population data is embedded in source code
 - **Vite dev server** - Hot module replacement during development

@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T19:14:57Z
-version: 1.4
+last_updated: 2026-02-06T20:37:15Z
+version: 1.5
 author: Claude Code PM System
 ---
 
@@ -17,26 +17,31 @@ author: Claude Code PM System
 - Mouse drag rotation, scroll zoom, auto-rotation toggle
 - Graticule grid overlay
 
-### Country/Subdivision Markers
+### Country/Subdivision/County Markers
 - White circular markers on globe surface for countries (always visible)
 - Light blue circular markers for subdivisions (visible only when parent country is expanded)
+- Lighter blue (`#aaddff`) smaller markers for US counties (visible only when parent state is expanded)
 - Marker size scaled by population relative to max
 - Hover tooltip with name, type badge, population, region, and capital
 - Click to select and view detailed statistics
 
 ### Sidebar List
-- Hierarchical country list sorted by population
+- Three-level hierarchical list sorted by population: Country (depth 0) > State (depth 1) > County (depth 2)
 - Expand/collapse chevron for countries with subdivisions
+- Expand arrow on US state rows to reveal county-level data (lazy-loaded)
+- Loading spinner while county data fetches
 - Search by name, region, capital, or alias
 - Search auto-expands matching parent countries
-- Rank numbering (separate for countries and subdivisions)
+- Rank numbering (separate for countries, subdivisions, and counties)
 - Population bar chart relative to maximum
 - Region color indicators
+- CTY badge for county entries with smaller font and deeper indentation
 
 ### Detail Panel
 - Country view: name, COUNTRY badge, population, world percentage, coordinates, subdivision count
 - Subdivision view: name, type badge (STATE/PROVINCE/etc.), tier label, population, parent/world percentages
-- Conditional fields: region, capital, density, area, median age, 2020-25 growth
+- County view: name, CTY badge, population, parent state percentage, FIPS code, density, area, growth rate
+- Conditional fields: region, capital/seat, density, area, median age, 2020-25 growth
 - Growth rate bar and density comparison bar
 
 ### Geographical Boundaries
@@ -62,13 +67,23 @@ Countries with subdivision data have internal borders painted on the globe textu
 - Indonesia: 33 provinces via local TopoJSON
 - Bangladesh: 8 divisions via geoBoundaries TopoJSON (local)
 - Pakistan: 7 provinces via local TopoJSON
+- Russia: 85 federal subjects via local TopoJSON
 - French Guiana: 1 territory via local TopoJSON
+
+### US County Boundaries
+Counties within expanded US states have boundary overlays drawn on the highlight mesh:
+- County topology from CDN: us-atlas@3/counties-10m.json (~822KB, ~200KB gzipped)
+- Loaded once on first state county expansion, cached in ref
+- Filtered per-state by FIPS prefix
+- 1,040 counties across top 10 states (CA, TX, FL, NY, PA, IL, OH, GA, NC, MI)
 
 ## Data Coverage
 
 - **174 countries/territories** with population, coordinates, and aliases (full world-atlas TopoJSON coverage)
-- **492 subdivisions** across 22 countries (USA: 51, Nigeria: 37, India: 36, China: 33, Indonesia: 33, Colombia: 33, Mexico: 32, Brazil: 27, Peru: 26, Venezuela: 25, Argentina: 24, Ecuador: 24, Uruguay: 19, Paraguay: 18, Chile: 16, Canada: 13, Guyana: 10, Suriname: 10, Bolivia: 9, Bangladesh: 8, Pakistan: 7, French Guiana: 1)
+- **492+ subdivisions** across 22 countries (USA: 51, Russia: 85, Nigeria: 37, India: 36, China: 33, Indonesia: 33, Colombia: 33, Mexico: 32, Brazil: 27, Peru: 26, Venezuela: 25, Argentina: 24, Ecuador: 24, Uruguay: 19, Paraguay: 18, Chile: 16, Canada: 13, Guyana: 10, Suriname: 10, Bolivia: 9, Bangladesh: 8, Pakistan: 7, French Guiana: 1)
+- **1,040 US counties** across 10 states (lazy-loaded, third hierarchy level)
 - Subdivision stats include: population, density, region, capital, area, growth rate, median age
+- County stats include: population, density, region, area, growth rate, FIPS code
 - 152 countries have empty subdivision arrays (future expansion)
 - Includes 6 territories (Puerto Rico, Greenland, French Guiana, New Caledonia, Western Sahara, Mayotte, Falkland Islands) and Antarctica
 
@@ -79,5 +94,6 @@ Countries with subdivision data have internal borders painted on the globe textu
 3. **Hover** - Mouse over markers to see tooltip
 4. **Click marker** - Select country/subdivision to view details
 5. **Expand country** - Click chevron to reveal subdivisions in list and on globe
-6. **Search** - Type to filter countries and subdivisions
-7. **Toggle rotation** - Click Rotating/Paused button
+6. **Expand state** - Click expand arrow on US state rows to reveal counties (lazy-loaded)
+7. **Search** - Type to filter countries, subdivisions, and loaded counties
+8. **Toggle rotation** - Click Rotating/Paused button

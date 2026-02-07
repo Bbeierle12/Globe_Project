@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T19:14:57Z
-version: 1.2
+last_updated: 2026-02-06T20:37:15Z
+version: 1.3
 author: Claude Code PM System
 ---
 
@@ -15,6 +15,7 @@ author: Claude Code PM System
 | Three.js | 0.182.0 | 3D WebGL rendering |
 | D3.js | 7.9.0 | Geographic projection and path generation |
 | Vite | 7.2.4 | Build tool and dev server |
+| WebGPU | (optional) | Compute shaders for boundary rendering + population heat mapping |
 | Node.js | (project uses ES modules) | Runtime |
 
 ## Dependencies
@@ -68,18 +69,34 @@ Custom `decodeTopo()` function (no topojson-client library) handles:
 ### Data Fetching
 - World TopoJSON + all `SUB_CONFIGS` URLs fetched in parallel via `Promise.all` (currently up to 23 sources)
 - CDN sources: world-atlas, us-atlas, Brideau (CA), diegovalle (MX), india-maps-data (IN), cn-atlas (CN)
-- Local sources: `public/topo/*.json` for 17 countries (SA + Indonesia, Pakistan, Nigeria, Bangladesh)
-- All fetches happen inside a single `useEffect` with cleanup via `dead` flag
+- Local sources: `public/topo/*.json` for 18 countries (SA + Indonesia, Pakistan, Nigeria, Bangladesh, Russia)
+- County topology lazy-fetched from CDN on first state expansion (us-atlas counties-10m.json)
+- County data modules lazy-loaded via Vite dynamic `import()` per state
+- All startup fetches happen inside a single `useEffect` with cleanup via `dead` flag
 - Error handling shows user-visible error message
 
+### Lazy Loading (County Data)
+- `COUNTY_FILE_MAP` in `src/data/us-counties/index.js` maps state FIPS to dynamic imports
+- Vite code-splits each state's county data into separate chunks (~2-7KB gzipped each)
+- County topology (us-atlas counties-10m.json, ~200KB gzipped) loaded once, cached in `countyTopoRef`
+- Both data and topology loaded in parallel on first state county expansion
+
+### WebGPU Compute
+- `src/webgpu/county-compute.js` provides GPU-accelerated computation with CPU fallback
+- `initGPU()` detects WebGPU availability and initializes device
+- Population heat map shader: WGSL compute shader mapping populations to 6-color gradient (workgroup_size 256)
+- Arc transform shader: WGSL compute shader for delta-decoding + transforming TopoJSON arcs
+- CPU fallback: `computePopulationColorsCPU()` matches same gradient algorithm
+- WebGPU used only for compute; Three.js continues using WebGLRenderer for display
+
 ### State Management
-- React `useState` for: hover, selection, search, loading, autoRotate, error, expanded
-- `useRef` for: mount element, hover state, autoRotate flag, markers, visible markers
-- `useMemo` for hierarchical sorted list (depends on search + expanded)
-- `useCallback` for toggle expand function
+- React `useState` for: hover, selection, search, loading, autoRotate, error, expanded, expandedStates, countyLoading, loadedCounties
+- `useRef` for: mount element, hover state, autoRotate flag, markers, visible markers, countyTopoRef, countyMkRef
+- `useMemo` for hierarchical sorted list (depends on search + expanded + expandedStates + loadedCounties)
+- `useCallback` for toggle expand function and toggleExpandState function
 
 ## Platform
 
 - **OS**: Windows (primary development)
-- **Browser**: Any modern browser with WebGL support
+- **Browser**: Any modern browser with WebGL support; WebGPU compute optional (Chrome 113+)
 - **No backend**: Fully client-side SPA
