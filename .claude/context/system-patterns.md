@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T20:37:15Z
-version: 1.3
+last_updated: 2026-02-06T22:06:41Z
+version: 2.0
 author: Claude Code PM System
 ---
 
@@ -9,11 +9,19 @@ author: Claude Code PM System
 
 ## Architectural Style
 
-**Single-component monolith** - The entire application lives in `Globe.jsx` (~860+ lines) with data extracted to `src/data/` and WebGPU compute shaders in `src/webgpu/`. There are no separate utility files, custom hooks, or service layers beyond the compute module. This is intentional for simplicity given the focused scope.
+**Multi-component CesiumJS application** - The application is split across several focused modules:
+- `App.jsx` (~120 lines) - State management hub
+- `CesiumGlobe.jsx` (~399 lines) - CesiumJS viewer lifecycle and interactions
+- `Sidebar.jsx` (~602 lines) - Search, list, and detail panel UI
+- `Tooltip.jsx` (~65 lines) - Hover tooltip overlay
+- `src/cesium/` (5 files) - Modular CesiumJS setup (terrain, population, cities, buildings, topo utils)
+- `src/data/` (unchanged) - All population/country/subdivision data
+
+CesiumJS is used directly (not via Resium) because Resium has a runtime crash on React 19 ([issue #689](https://github.com/reearth/resium/issues/689)).
 
 ## Data Model
 
-### Hierarchical Country → Subdivision → County
+### Hierarchical Country > Subdivision > County
 
 ```
 Country (t:"c")
@@ -57,17 +65,15 @@ Subdivision handling is fully data-driven via `SUB_CONFIGS` array in `index.js`.
 }
 ```
 
-Globe.jsx iterates `SUB_CONFIGS` generically for:
+`populationLayer.js` iterates `SUB_CONFIGS` generically for:
 1. Building lookup maps per country
 2. Fetching all TopoJSON sources in parallel
-3. Painting subdivisions on the canvas texture
-4. Drawing subdivision borders
-
-This replaced per-country hardcoded logic (FIPS, CA_PROV, MX_STATE, IN_STATE maps).
+3. Creating GeoJSON entities with per-subdivision population coloring
+4. Drawing subdivision borders as terrain-clamped polygons
 
 ### County Configuration (COUNTY_CONFIG)
 
-County-level data uses a separate config from SUB_CONFIGS since it adds a third hierarchy level:
+County-level data uses a separate config since it adds a third hierarchy level:
 ```js
 var COUNTY_CONFIG = {
   topoUrl: "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json",
@@ -89,56 +95,93 @@ var COUNTY_FILE_MAP = {
 - **CDN-hosted**: USA (us-atlas states), Canada (Brideau gist), Mexico (diegovalle gist), India (india-maps-data), China (cn-atlas)
 - **CDN lazy-loaded**: US counties (us-atlas counties-10m.json, loaded on first state expansion)
 - **Local files** (`public/topo/`): Brazil, Colombia, Peru, Argentina, Venezuela, Chile, Ecuador, Bolivia, Paraguay, Uruguay, Guyana, Suriname, French Guiana, Indonesia, Pakistan, Nigeria, Bangladesh, Russia
-- **geoBoundaries** (`public/topo/bd-divisions.json`): Bangladesh (used instead of Natural Earth which is missing Mymensingh division)
 
 ## Design Patterns
 
+### CesiumJS Viewer Lifecycle (useRef + useEffect)
+```js
+var viewerRef = useRef(null);
+useEffect(function() {
+  var dead = false;
+  async function init() {
+    var viewer = new Cesium.Viewer(mountRef.current, { ... });
+    viewerRef.current = viewer;
+    // ... setup layers, handlers, listeners
+  }
+  init();
+  return function() {
+    dead = true;
+    // cleanup: remove listeners, destroy handler, destroy layers, destroy viewer
+  };
+}, []);
+```
+
+All Cesium UI widgets disabled; custom React sidebar/tooltip used instead.
+
 ### Pre-create and Toggle Visibility
-All subdivision markers are created during initial data load but set to `visible: false`. Expanding a country toggles visibility without creating/destroying Three.js objects.
+All subdivision markers are created during initialization but set to `show: false`. Expanding a country toggles `entity.show` without creating/destroying CesiumJS entities.
 
 ### Ref-based Marker Registry
 ```js
-mkRef.current = {
-  m: countryMarkers,       // always-visible country markers
-  dm: dataMap,             // Three.js mesh.id → data object
-  subMarkers: Map<iso, Mesh[]>  // per-country subdivision markers
+markersRef.current = {
+  country: [],                        // always-visible country point entities
+  subdivisionsByIso: Map<iso, Entity[]>, // per-country subdivision entities
+  countiesByFp: Map<stateFips, Entity[]>, // county entities per state
 };
-visibleMkRef.current = [...];   // rebuilt on expand state change
-countyMkRef.current = Map<stateFips, Mesh[]>;  // county markers per state
-countyTopoRef.current = { loaded: false, data: null, promise: null };  // cached county topology
+layersRef.current = {
+  population: null,   // GeoJsonDataSource wrapper
+  cities: null,       // city layer wrapper
+  buildings: null,    // Cesium3DTileset
+};
 ```
 
 ### Dynamic County Markers
-County markers are created/destroyed dynamically (unlike subdivision markers which are pre-created):
-- Created when a US state is expanded to county level
-- Smaller size and lighter blue color (`0xaaddff`) than state markers
-- Stored in `countyMkRef` Map keyed by state FIPS
-- Disposed and removed from `visibleMkRef` when state is collapsed
+County markers are created dynamically when a US state is expanded (unlike subdivision markers which are pre-created). Stored in `countiesByFp` Map, visibility toggled via `expandedStates`.
 
 ### Hierarchical Sorted List
-The `sorted` useMemo produces a flat array of `{entry, depth}` objects:
+The `sorted` useMemo in Sidebar.jsx produces a flat array of `{entry, depth}` objects:
 - Countries at depth 0, subdivisions at depth 1, counties at depth 2
 - Filtered by search (countries match if name/alias/region/capital matches, or if any subdivision matches)
 - Subdivisions shown when parent is expanded OR when search matches subdivisions
 - Counties shown when parent state is expanded via `expandedStates`
-
-### Canvas Texture Pipeline
-1. Create 4096x2048 canvas
-2. Set up d3 equirectangular projection fitted to canvas size
-3. Paint ocean gradient
-4. Paint each country (skip countries listed in SUB_CONFIGS `skipName`)
-5. For each SUB_CONFIGS entry: paint subdivisions individually using lookup maps
-6. Draw country borders, then subdivision borders for each SUB_CONFIGS entry
-7. Draw graticule
-8. Convert canvas to Three.js CanvasTexture → apply to sphere
 
 ### Population Color Scale
 ```js
 function pClr(pop) {
   var t = Math.pow(pop / MP, 0.3);  // power scale normalization
   // 6-stop gradient: dark blue → teal → green → yellow → orange → red
+  // Returns {r, g, b} object, converted to Cesium.Color.fromBytes() for entities
 }
 ```
+
+### GeoJSON Population Overlay Pipeline
+1. Fetch world TopoJSON + all 23 SUB_CONFIGS URLs in parallel via `Promise.all`
+2. Decode each TopoJSON to GeoJSON via custom `decodeTopo()` function
+3. Load as `Cesium.GeoJsonDataSource` with `clampToGround: true`
+4. Per-entity coloring via `pClr()` population color function
+5. Outlines disabled (unsupported on terrain-clamped entities)
+6. Stroke set to transparent to prevent RangeError on complex polygons
+7. Selection highlighting via material brightness change
+
+### Camera-Based Layer Visibility
+```js
+viewer.camera.changed.addEventListener(function() {
+  var height = viewer.camera.positionCartographic.height;
+  populationLayer.setSubdivisionsVisible(height < 12000000);
+  buildings.show = height < 1800000;
+});
+```
+
+### City Labels with Distance-Based LOD
+City point + label entities use `distanceDisplayCondition` and `scaleByDistance` (`NearFarScalar`) so labels only appear when zoomed in close enough.
+
+### requestRenderMode Performance
+`requestRenderMode: true` with `maximumRenderTimeChange: Infinity` means CesiumJS only renders when explicitly requested via `scene.requestRender()`. Called after:
+- Mouse movement (hover updates)
+- Click (selection updates)
+- Camera change (layer visibility)
+- Auto-rotation tick
+- Marker visibility toggle
 
 ## Code Style
 
@@ -149,46 +192,38 @@ function pClr(pop) {
 - No destructuring, template literals, or modern syntax
 
 ### Inline Styles
-All CSS is written as inline React style objects. No CSS modules, styled-components, or external stylesheets for the Globe component.
+All CSS is written as inline React style objects. No CSS modules, styled-components, or external stylesheets for components.
 
 ### Error Handling
-- Try/catch around Three.js initialization
-- Promise.catch for TopoJSON fetch failures
-- User-visible error state via `setErr()`
+- Try/catch around CesiumJS initialization with fallback terrain provider
 - `dead` flag prevents state updates after unmount
-
-### WebGPU Compute Pattern
-```js
-// Feature detection with fallback
-var device = await initGPU();
-if (!device) return cpuFallback();
-
-// GPU pipeline: create buffers → write data → create pipeline → dispatch → read back
-var paramsBuffer = device.createBuffer({ ... });
-device.queue.writeBuffer(paramsBuffer, 0, data);
-var pipeline = device.createComputePipeline({ layout: "auto", compute: { module, entryPoint: "main" } });
-// ... dispatch, copy, mapAsync, read result
-```
-
-Two WGSL compute shaders:
-1. **HEAT_MAP_SHADER** - Population to RGBA color (workgroup_size 256, parallelized per county)
-2. **ARC_TRANSFORM_SHADER** - Sequential delta-decode + transform (workgroup_size 1, prefix sum)
+- User-visible error state via `setErr()` displayed as banner
 
 ## Data Flow
 
 ```
-countries.js → index.js (computed exports + SUB_CONFIGS + COUNTY_CONFIG) → Globe.jsx
-                                                            ├── Fetch world TopoJSON + all SUB_CONFIGS URLs
-                                                            ├── Build per-country lookup maps from SUB_CONFIGS
-                                                            ├── Paint canvas texture (generic subdivision loop)
-                                                            ├── Create Three.js scene + markers
-                                                            ├── React UI (sidebar, tooltip, detail)
-                                                            └── On state expand:
-                                                                ├── Lazy-load county data (COUNTY_FILE_MAP)
-                                                                ├── Lazy-load county topology (COUNTY_CONFIG)
-                                                                ├── Create county markers dynamically
-                                                                └── Draw county boundaries on highlight canvas
+countries.js → index.js (computed exports + SUB_CONFIGS + COUNTY_CONFIG)
+                    ↓
+              App.jsx (state hub)
+              ├── CesiumGlobe.jsx (3D engine)
+              │   ├── terrainSetup.js → Ion terrain + visual settings
+              │   ├── populationLayer.js → GeoJSON entities (fetch + decode + color)
+              │   │   └── topoUtils.js → decodeTopo() + pClr()
+              │   ├── cityLayer.js → city markers/labels from cities.geojson
+              │   ├── buildingsLayer.js → 3D OSM Buildings tileset
+              │   ├── Country/subdivision/county point markers
+              │   └── ScreenSpaceEventHandler → hover/click → App state
+              ├── Sidebar.jsx (UI)
+              │   ├── Search → filter entries
+              │   ├── Hierarchical list → expand/collapse
+              │   ├── Detail panel → stats display
+              │   └── Click → App.onSelect → CesiumGlobe.camera.flyTo()
+              └── Tooltip.jsx (hover overlay)
 
-us-counties/index.js → COUNTY_FILE_MAP → dynamic import per state
-webgpu/county-compute.js → GPU compute (optional) → typed array results
+On state expand (US):
+  App.jsx → COUNTY_FILE_MAP → dynamic import → loadedCounties state
+  CesiumGlobe.jsx → create county marker entities → toggle visibility
 ```
+
+## Update History
+- 2026-02-06: Major rewrite - Three.js/WebGPU patterns replaced by CesiumJS architecture

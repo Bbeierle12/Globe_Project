@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T20:37:15Z
-version: 1.5
+last_updated: 2026-02-06T22:06:41Z
+version: 2.0
 author: Claude Code PM System
 ---
 
@@ -9,21 +9,33 @@ author: Claude Code PM System
 
 ## Core Features
 
-### 3D Interactive Globe
-- WebGL-rendered sphere with equirectangular texture projection
-- Population-based color gradient for countries and subdivisions (blue → green → yellow → red)
-- Country borders and subdivision borders drawn on the texture
-- Atmosphere glow effect and star field background
+### 3D Interactive Globe (CesiumJS)
+- CesiumJS-rendered 3D globe with real terrain (Cesium World Terrain, Ion Asset 1)
+- OpenStreetMap base imagery tiles
+- Terrain with vertex normals, water mask, and ocean wave animation
+- Atmosphere glow effect and dynamic sun lighting
+- Population-based color gradient for countries and subdivisions (blue > green > yellow > red)
+- GeoJSON polygon entities clamped to terrain for country/subdivision borders
 - Mouse drag rotation, scroll zoom, auto-rotation toggle
-- Graticule grid overlay
+- 3D OSM Buildings (Ion Asset 96188) visible when zoomed into cities
+- City markers and labels with distance-based LOD visibility
+- `requestRenderMode` for performance (render only on changes)
 
 ### Country/Subdivision/County Markers
 - White circular markers on globe surface for countries (always visible)
 - Light blue circular markers for subdivisions (visible only when parent country is expanded)
-- Lighter blue (`#aaddff`) smaller markers for US counties (visible only when parent state is expanded)
+- Lighter blue (`#b5ddff`) smaller markers for US counties (visible only when parent state is expanded)
+- All markers use `NearFarScalar` for distance-based size scaling
 - Marker size scaled by population relative to max
 - Hover tooltip with name, type badge, population, region, and capital
 - Click to select and view detailed statistics
+- Camera fly-to on selection (country: 3000km, subdivision: 800km, county: 200km altitude)
+
+### City Layer
+- Natural Earth Populated Places data (~539KB pre-filtered GeoJSON)
+- Point markers and text labels with distance-based visibility conditions
+- Labels appear/disappear based on zoom level and city population
+- Scale by distance for natural LOD behavior
 
 ### Sidebar List
 - Three-level hierarchical list sorted by population: Country (depth 0) > State (depth 1) > County (depth 2)
@@ -42,10 +54,9 @@ author: Claude Code PM System
 - Subdivision view: name, type badge (STATE/PROVINCE/etc.), tier label, population, parent/world percentages
 - County view: name, CTY badge, population, parent state percentage, FIPS code, density, area, growth rate
 - Conditional fields: region, capital/seat, density, area, median age, 2020-25 growth
-- Growth rate bar and density comparison bar
 
-### Geographical Boundaries
-Countries with subdivision data have internal borders painted on the globe texture:
+### Geographical Boundaries (GeoJSON Population Overlay)
+Countries with subdivision data have internal borders as terrain-clamped GeoJSON entities:
 - USA: 51 states via us-atlas TopoJSON (CDN)
 - India: 36 states/union territories via india-maps-data TopoJSON (CDN)
 - China: 34 provinces via cn-atlas TopoJSON (CDN)
@@ -67,33 +78,36 @@ Countries with subdivision data have internal borders painted on the globe textu
 - Indonesia: 33 provinces via local TopoJSON
 - Bangladesh: 8 divisions via geoBoundaries TopoJSON (local)
 - Pakistan: 7 provinces via local TopoJSON
-- Russia: 85 federal subjects via local TopoJSON
+- Russia: 83 federal subjects via local TopoJSON
 - French Guiana: 1 territory via local TopoJSON
 
-### US County Boundaries
-Counties within expanded US states have boundary overlays drawn on the highlight mesh:
-- County topology from CDN: us-atlas@3/counties-10m.json (~822KB, ~200KB gzipped)
-- Loaded once on first state county expansion, cached in ref
-- Filtered per-state by FIPS prefix
-- 1,040 counties across top 10 states (CA, TX, FL, NY, PA, IL, OH, GA, NC, MI)
+### 3D OSM Buildings
+- Cesium OSM Buildings (Ion Asset 96188) loaded as `Cesium3DTileset`
+- Automatic LOD streaming (buildings only load when zoomed in close)
+- Visible when camera altitude < 1,800,000m
+- Zero performance impact at globe scale
 
 ## Data Coverage
 
 - **174 countries/territories** with population, coordinates, and aliases (full world-atlas TopoJSON coverage)
-- **492+ subdivisions** across 22 countries (USA: 51, Russia: 85, Nigeria: 37, India: 36, China: 33, Indonesia: 33, Colombia: 33, Mexico: 32, Brazil: 27, Peru: 26, Venezuela: 25, Argentina: 24, Ecuador: 24, Uruguay: 19, Paraguay: 18, Chile: 16, Canada: 13, Guyana: 10, Suriname: 10, Bolivia: 9, Bangladesh: 8, Pakistan: 7, French Guiana: 1)
+- **575+ subdivisions** across 23 countries (USA: 51, Russia: 83, Nigeria: 37, India: 36, China: 34, Indonesia: 33, Colombia: 33, Mexico: 32, Brazil: 27, Peru: 26, Venezuela: 25, Argentina: 24, Ecuador: 24, Uruguay: 19, Paraguay: 18, Chile: 16, Canada: 13, Guyana: 10, Suriname: 10, Bolivia: 9, Bangladesh: 8, Pakistan: 7, French Guiana: 1)
 - **1,040 US counties** across 10 states (lazy-loaded, third hierarchy level)
+- **City data** from Natural Earth Populated Places (worldwide, pre-filtered)
 - Subdivision stats include: population, density, region, capital, area, growth rate, median age
 - County stats include: population, density, region, area, growth rate, FIPS code
-- 152 countries have empty subdivision arrays (future expansion)
+- 151 countries have empty subdivision arrays (future expansion)
 - Includes 6 territories (Puerto Rico, Greenland, French Guiana, New Caledonia, Western Sahara, Mayotte, Falkland Islands) and Antarctica
 
 ## User Interactions
 
 1. **Rotate** - Click and drag to rotate the globe
-2. **Zoom** - Scroll wheel to zoom in/out
+2. **Zoom** - Scroll wheel to zoom in/out (reveals city labels, buildings at close range)
 3. **Hover** - Mouse over markers to see tooltip
-4. **Click marker** - Select country/subdivision to view details
+4. **Click marker** - Select country/subdivision to view details + camera fly-to
 5. **Expand country** - Click chevron to reveal subdivisions in list and on globe
 6. **Expand state** - Click expand arrow on US state rows to reveal counties (lazy-loaded)
 7. **Search** - Type to filter countries, subdivisions, and loaded counties
 8. **Toggle rotation** - Click Rotating/Paused button
+
+## Update History
+- 2026-02-06: Major update - CesiumJS features (real terrain, cities, buildings, GeoJSON overlay)
