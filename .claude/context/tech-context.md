@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T22:01:21Z
-version: 2.0
+last_updated: 2026-02-07T17:24:29Z
+version: 2.1
 author: Claude Code PM System
 ---
 
@@ -75,6 +75,9 @@ npm run lint     # Run ESLint
 - All Cesium UI widgets disabled; custom React sidebar/tooltip used instead
 - `requestRenderMode: true` for performance (render only on changes)
 - `scene.requestRender()` called explicitly when state changes
+- Init decomposed into 6 focused helper functions with centralized `cleanupAll()` teardown
+- Mouse-move throttled to 60ms with hover-change deduplication (skips `requestRender()` when entity unchanged)
+- `Cesium.buildModuleUrl()` used for portable asset URLs (ocean normal map)
 
 ### TopoJSON Decoding
 Custom `decodeTopo()` function in `src/cesium/topoUtils.js` (no topojson-client library) handles:
@@ -91,7 +94,10 @@ Custom `decodeTopo()` function in `src/cesium/topoUtils.js` (no topojson-client 
 - Selection highlighting via material brightness change
 
 ### Data Fetching
-- World TopoJSON + all `SUB_CONFIGS` URLs fetched in parallel via `Promise.all` (24 sources)
+- World TopoJSON + all `SUB_CONFIGS` URLs fetched in parallel via `Promise.allSettled` (24 sources)
+- `safeFetch()` wrapper validates `response.ok` before parsing JSON
+- Failed subdivision fetches log warnings and are gracefully skipped (world TopoJSON failure still throws)
+- City layer validates `response.ok` and GeoJSON structure (`features` array present)
 - CDN sources: world-atlas, us-atlas, Brideau (CA), diegovalle (MX), india-maps-data (IN), cn-atlas (CN)
 - Local sources: `public/topo/*.json` for 18 countries
 - City data: `public/data/cities.geojson` (Natural Earth Populated Places, pre-filtered)
@@ -108,6 +114,21 @@ Custom `decodeTopo()` function in `src/cesium/topoUtils.js` (no topojson-client 
 - `CesiumGlobe.jsx` receives props and uses `useRef` for: viewer, handler, markers, layers, listeners
 - `Sidebar.jsx` receives state + setters as props, uses `useMemo` for sorted list
 - `useCallback` for toggle expand functions in App.jsx
+- `dangerouslySetInnerHTML` removed from App.jsx; keyframe/scrollbar CSS moved to `index.css`
+
+### Performance Optimizations
+- Virtualized sidebar list (`VirtualList`) with scroll-based windowing and 10-item overscan buffer
+- `cachedClr()` Map cache memoizes population-to-CSS-color-string conversions
+- `itemKey()` composite keys prevent React re-renders from key collisions
+- Precomputed `_countryByAlias` hash map for O(1) `findCountry()` lookups (replaces O(n) scan)
+- Shared `extractIso3166_2Suffix()` helper replaces 18 duplicate inline functions in SUB_CONFIGS
+
+### Accessibility
+- Sidebar wrapped in `<nav aria-label="...">` landmark
+- Expand/collapse triggers are `<button>` elements (not `<span>`) with `aria-label`
+- Search input has `aria-label`
+- Tooltip has `role="tooltip"` and `aria-live="polite"`
+- Minimum font sizes bumped from 7-9px to 9-12px
 
 ## Platform
 
@@ -117,4 +138,5 @@ Custom `decodeTopo()` function in `src/cesium/topoUtils.js` (no topojson-client 
 - **Environment**: `.env` file required for Cesium Ion token (gitignored)
 
 ## Update History
+- 2026-02-07: Added resilient fetching, performance optimizations, accessibility patterns
 - 2026-02-06: Major update - Three.js/D3 replaced by CesiumJS, WebGPU compute removed

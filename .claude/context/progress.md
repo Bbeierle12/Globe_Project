@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T22:01:21Z
-version: 2.0
+last_updated: 2026-02-08T01:19:08Z
+version: 2.1
 author: Claude Code PM System
 ---
 
@@ -13,32 +13,21 @@ author: Claude Code PM System
 
 ## Recent Commits
 
+- `018693c` Enhance error handling and improve performance in city and population layers
+- `400cded` Update context docs for CesiumJS migration and Russia subdivisions
 - `2fea099` feat: add layers for buildings, cities, and population visualization
 - `883a9f6` Update project documentation and structure for county-level data integration
 - `9847b90` Add WebGPU compute shaders for county rendering and population heat mapping
-- `6082237` Refactor code structure for improved readability and maintainability
-- `6da81d0` Add GeoJSON topology for Pakistan provinces
 
 ## Outstanding Changes (Uncommitted)
 
-**Major: Three.js to CesiumJS migration (complete but uncommitted)**
-- Replaced Three.js rendering engine with CesiumJS
-- Removed `three` and `d3` dependencies, added `cesium` and `vite-plugin-static-copy`
-- Deleted `src/Globe.jsx` (monolithic component) and `src/webgpu/county-compute.js`
-- Created new modular architecture:
-  - `src/CesiumGlobe.jsx` - CesiumJS viewer lifecycle
-  - `src/components/Sidebar.jsx` - Extracted sidebar UI
-  - `src/components/Tooltip.jsx` - Extracted hover tooltip
-  - `src/cesium/terrainSetup.js` - Terrain provider configuration
-  - `src/cesium/populationLayer.js` - GeoJSON population overlay
-  - `src/cesium/cityLayer.js` - City markers with LOD
-  - `src/cesium/buildingsLayer.js` - 3D OSM buildings
-  - `src/cesium/topoUtils.js` - TopoJSON decoder (extracted from Globe.jsx)
-- Added `public/data/cities.geojson` - Natural Earth populated places
-- Added `.env` with Cesium Ion token (gitignored)
-- Modified `src/App.jsx` to be state management hub
-- Modified `vite.config.js` for Cesium static asset copying
-- Added `.env` and `.env.*` to `.gitignore`
+**Major: Code review refactoring (complete but uncommitted)**
+Addressed 5 priority areas from comprehensive code review:
+1. **Loading resilience**: Promise.allSettled + response.ok checks in populationLayer/cityLayer
+2. **Performance**: Throttled mouse picks (60ms), virtualized sidebar list, memoized color cache
+3. **CesiumGlobe decomposition**: Split monolithic init into 6 focused helper functions + centralized cleanup
+4. **Data integrity**: Precomputed findCountry lookup, shared extractIso3166_2Suffix helper, unique selection keys
+5. **Accessibility/UX**: Replaced clickable spans with buttons, ARIA attributes, font size increases, moved CSS from dangerouslySetInnerHTML to index.css, fixed ocean normal map URL
 
 ## Completed Work
 
@@ -126,10 +115,25 @@ author: Claude Code PM System
 - Custom TopoJSON decoder preserved (standalone, no D3 dependency)
 - Bug fixes: null geometry handling, terrain-clamped outline suppression, base imagery provider
 
+### Code Review Refactoring (Complete, uncommitted)
+- Decomposed CesiumGlobe init into: `initViewer()`, `createMarkers()`, `setupInputHandlers()`, `setupAutoRotate()`, `setupCameraToggles()`, `cleanupAll()`
+- populationLayer: `Promise.allSettled` replaces `Promise.all`, `safeFetch()` wrapper with response.ok checks, graceful skip of failed subdivisions
+- cityLayer: Added response.ok + GeoJSON structure validation
+- terrainSetup: `Cesium.buildModuleUrl()` for ocean normal map URL (was hardcoded path)
+- data/index.js: `_countryByAlias` precomputed hash replaces O(n) scan, `extractIso3166_2Suffix` shared helper replaces 18 duplicate inline functions
+- Sidebar: VirtualList component with scroll-based windowing, `cachedClr()` color cache, `itemKey()` unique composite keys
+- Sidebar: `<nav>` landmark, `<button>` for expand/collapse, `aria-label` on search and toggles
+- Tooltip: `role="tooltip"` + `aria-live="polite"`
+- All font sizes bumped from 7-9px to 9-12px minimum
+- dangerouslySetInnerHTML removed from App.jsx; keyframe/scrollbar CSS moved to index.css
+
 ## Immediate Next Steps
 
-1. **Commit CesiumJS migration** - All uncommitted changes
+1. **Commit code review refactoring** - All uncommitted changes (9 files)
 2. **Add growth/density visual bars** to Sidebar detail panel (lost during migration)
 3. **Continue Phase 2:** Germany, France, Australia, Japan, UK, South Korea subdivisions
 4. **Remaining 40 US states** county data (Phase 2 of county expansion)
 5. **151 countries** still have empty subdivision arrays
+
+## Update History
+- 2026-02-08: Added code review refactoring completion details

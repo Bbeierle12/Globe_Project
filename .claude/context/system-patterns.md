@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T22:06:41Z
-version: 2.0
+last_updated: 2026-02-08T01:19:08Z
+version: 2.1
 author: Claude Code PM System
 ---
 
@@ -98,23 +98,20 @@ var COUNTY_FILE_MAP = {
 
 ## Design Patterns
 
-### CesiumJS Viewer Lifecycle (useRef + useEffect)
+### CesiumJS Viewer Lifecycle (Decomposed Init)
+The init effect orchestrates 6 focused helper functions:
 ```js
-var viewerRef = useRef(null);
-useEffect(function() {
-  var dead = false;
-  async function init() {
-    var viewer = new Cesium.Viewer(mountRef.current, { ... });
-    viewerRef.current = viewer;
-    // ... setup layers, handlers, listeners
-  }
-  init();
-  return function() {
-    dead = true;
-    // cleanup: remove listeners, destroy handler, destroy layers, destroy viewer
-  };
-}, []);
+// Each returns resources tracked in a single `resources` object
+var viewer = initViewer(mountRef.current, terrainProvider);
+resources.viewer = viewer;
+var populationLayer = await createPopulationLayer(viewer);
+resources.populationLayer = populationLayer;
+var handler = setupInputHandlers(viewer, onHoverRef, onSelectRef);
+resources.handler = handler;
+resources.onTick = setupAutoRotate(viewer, autoRotateRef);
+resources.onCameraChanged = setupCameraToggles(viewer, layersRef);
 ```
+`cleanupAll(resources)` handles teardown (unmount, partial failure, or dead flag).
 
 All Cesium UI widgets disabled; custom React sidebar/tooltip used instead.
 
@@ -155,7 +152,7 @@ function pClr(pop) {
 ```
 
 ### GeoJSON Population Overlay Pipeline
-1. Fetch world TopoJSON + all 23 SUB_CONFIGS URLs in parallel via `Promise.all`
+1. Fetch world TopoJSON + all 23 SUB_CONFIGS URLs in parallel via `Promise.allSettled` (with `safeFetch` wrapper checking `response.ok`)
 2. Decode each TopoJSON to GeoJSON via custom `decodeTopo()` function
 3. Load as `Cesium.GeoJsonDataSource` with `clampToGround: true`
 4. Per-entity coloring via `pClr()` population color function
@@ -177,11 +174,27 @@ City point + label entities use `distanceDisplayCondition` and `scaleByDistance`
 
 ### requestRenderMode Performance
 `requestRenderMode: true` with `maximumRenderTimeChange: Infinity` means CesiumJS only renders when explicitly requested via `scene.requestRender()`. Called after:
-- Mouse movement (hover updates)
+- Mouse movement (throttled to 60ms, only when hover target changes)
 - Click (selection updates)
 - Camera change (layer visibility)
 - Auto-rotation tick
 - Marker visibility toggle
+
+### Throttled Mouse Pick
+Mouse move handler uses a 60ms throttle timer and skips `requestRender()` when the hovered entity hasn't changed:
+```js
+if (pickThrottleTimer) return;
+pickThrottleTimer = setTimeout(function() { pickThrottleTimer = null; }, 60);
+var entry = getPickedEntry(viewer.scene.pick(movement.endPosition));
+if (entry !== lastHoverEntry) { /* update + requestRender */ }
+```
+
+### Virtualized Sidebar List
+`VirtualList` component renders only visible items using absolute positioning:
+- Tracks `scrollTop` via `onScroll` callback
+- Computes visible item range with overscan buffer (10 items)
+- Uses `cachedClr()` Map cache for population-to-color string conversion
+- Unique item keys via `itemKey()` using composite identifiers (fips, parentIso, coordinates)
 
 ## Code Style
 
@@ -191,8 +204,8 @@ City point + label entities use `distanceDisplayCondition` and `scaleByDistance`
 - `for` loops instead of `.map()` in performance-sensitive areas
 - No destructuring, template literals, or modern syntax
 
-### Inline Styles
-All CSS is written as inline React style objects. No CSS modules, styled-components, or external stylesheets for components.
+### Inline Styles + Global CSS
+Component styles are inline React style objects. Global styles (keyframes, scrollbar) live in `index.css`. No CSS modules or styled-components.
 
 ### Error Handling
 - Try/catch around CesiumJS initialization with fallback terrain provider
@@ -225,5 +238,12 @@ On state expand (US):
   CesiumGlobe.jsx → create county marker entities → toggle visibility
 ```
 
+### Shared extractIso3166_2Suffix Helper
+18 SUB_CONFIGS entries that parse `iso_3166_2` properties now reference a single shared `extractIso3166_2Suffix()` function instead of duplicating the logic inline.
+
+### Precomputed findCountry Lookup
+`findCountry()` uses a precomputed `_countryByAlias` hash map (built once at module load) instead of scanning all countries/aliases on each call.
+
 ## Update History
+- 2026-02-08: Added decomposed init, throttled picks, virtualized list, shared helpers, ARIA patterns
 - 2026-02-06: Major rewrite - Three.js/WebGPU patterns replaced by CesiumJS architecture

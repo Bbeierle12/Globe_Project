@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T22:06:41Z
-version: 2.0
+last_updated: 2026-02-07T17:24:29Z
+version: 2.1
 author: Claude Code PM System
 ---
 
@@ -51,19 +51,19 @@ Globe_Project/
 │   ├── main.jsx              # React entry point (StrictMode + createRoot)
 │   ├── App.jsx               # Root component (state hub between CesiumGlobe + Sidebar)
 │   ├── App.css               # Default Vite template styles (unused)
-│   ├── index.css             # Global reset (box-sizing, full viewport)
-│   ├── CesiumGlobe.jsx       # CesiumJS viewer component (~399 lines)
+│   ├── index.css             # Global reset + keyframes + scrollbar styles
+│   ├── CesiumGlobe.jsx       # CesiumJS viewer component (~430 lines, decomposed init)
 │   ├── components/
-│   │   ├── Sidebar.jsx       # Search, hierarchical list, detail panel (~602 lines)
-│   │   └── Tooltip.jsx       # Hover tooltip overlay (~65 lines)
+│   │   ├── Sidebar.jsx       # Search, virtualized list, detail panel (~567 lines)
+│   │   └── Tooltip.jsx       # Hover tooltip overlay with ARIA (~67 lines)
 │   ├── cesium/
 │   │   ├── terrainSetup.js   # Ion token config + terrain provider (Asset ID 1)
-│   │   ├── populationLayer.js # GeoJSON population overlay with TopoJSON decoding (~209 lines)
+│   │   ├── populationLayer.js # GeoJSON population overlay with resilient fetching (~210 lines)
 │   │   ├── cityLayer.js      # City markers/labels from Natural Earth data (~96 lines)
 │   │   ├── buildingsLayer.js # 3D OSM Buildings via Ion Asset 96188 (~20 lines)
 │   │   └── topoUtils.js      # Standalone TopoJSON decoder + population color function (~96 lines)
 │   └── data/
-│       ├── index.js          # Data exports hub (ISO_MAP, MP, WORLD_POP, RC, COUNTY_CONFIG, findCountry)
+│       ├── index.js          # Data exports hub (ISO_MAP, MP, WORLD_POP, RC, COUNTY_CONFIG, findCountry, extractIso3166_2Suffix)
 │       ├── countries.js      # All country + subdivision data (~660 lines)
 │       ├── idMap.js          # TopoJSON feature ID → country name mapping
 │       └── us-counties/      # Lazy-loaded US county data (Vite code-split)
@@ -84,19 +84,15 @@ Globe_Project/
 
 ## Key Files
 
-### `src/CesiumGlobe.jsx` (~399 lines)
-CesiumJS viewer component managing the 3D globe lifecycle:
-- CesiumJS `Viewer` creation in `useEffect` with cleanup on unmount
-- OSM imagery via `OpenStreetMapImageryProvider` (set as `baseLayer` in constructor)
-- Cesium World Terrain (Ion Asset 1) with water mask and vertex normals
-- Population GeoJSON overlay layer (`populationLayer.js`)
-- City markers/labels layer (`cityLayer.js`)
-- 3D OSM Buildings layer (`buildingsLayer.js`, hidden until zoomed in)
+### `src/CesiumGlobe.jsx` (~430 lines)
+CesiumJS viewer component with decomposed initialization:
+- 6 focused helper functions: `initViewer()`, `createMarkers()`, `setupInputHandlers()`, `setupAutoRotate()`, `setupCameraToggles()`, `cleanupAll()`
+- `resources` object tracks all created resources for centralized cleanup
+- Throttled mouse picks (60ms timer) with hover-change deduplication
+- `cleanupAll()` handles unmount, partial init failure, and dead-flag teardown
+- OSM imagery, Cesium World Terrain (Ion Asset 1), population/city/building layers
 - Country/subdivision/county point markers with LOD scaling (`NearFarScalar`)
-- `ScreenSpaceEventHandler` for hover and click interactions
-- Auto-rotation via `clock.onTick` listener
-- Camera altitude-based layer visibility toggling
-- `requestRenderMode: true` for performance (render only on changes)
+- `requestRenderMode: true` with explicit `scene.requestRender()` calls
 
 ### `src/App.jsx` (~120 lines)
 Root component lifting shared state between CesiumGlobe, Sidebar, and Tooltip:
@@ -104,29 +100,31 @@ Root component lifting shared state between CesiumGlobe, Sidebar, and Tooltip:
 - County lazy-loading logic via `COUNTY_FILE_MAP` dynamic imports
 - `useCallback` for toggle functions passed as props
 
-### `src/components/Sidebar.jsx` (~602 lines)
-Three-level hierarchical sidebar with search, list, and detail panel:
+### `src/components/Sidebar.jsx` (~567 lines)
+Three-level hierarchical sidebar with search, virtualized list, and detail panel:
+- `VirtualList` component with scroll-based windowing and overscan buffer (10 items)
+- `cachedClr()` Map cache for population-to-color string memoization
+- `itemKey()` composite keys for unique item identification (avoids name collisions)
 - Search input filtering by name, region, capital, alias
 - Sorted flat list via `useMemo` (countries depth 0, subdivisions depth 1, counties depth 2)
-- Expand/collapse chevrons for countries with subdivisions
-- Expand arrows on US state rows for county-level data
+- Expand/collapse `<button>` elements with `aria-label` attributes
+- `<nav>` landmark with ARIA labels on search input
 - Detail panel with population stats, coordinates, density, area, growth rate
-- Population bar charts relative to maximum
 
-### `src/components/Tooltip.jsx` (~65 lines)
-Hover tooltip overlay showing name, type badge, population, region, and capital.
+### `src/components/Tooltip.jsx` (~67 lines)
+Hover tooltip overlay with `role="tooltip"` and `aria-live="polite"`. Shows name, type badge, population, region, and capital.
 
 ### `src/cesium/` (5 files)
 Modular CesiumJS setup:
 - **terrainSetup.js** - Ion token configuration, terrain provider creation (Asset ID 1), globe visual settings
-- **populationLayer.js** - Fetches world + subdivision TopoJSON, decodes via `topoUtils.js`, creates `GeoJsonDataSource` entities with population coloring, terrain-clamped, outlines disabled
-- **cityLayer.js** - Loads `cities.geojson`, creates point + label entities with distance-based LOD visibility
+- **populationLayer.js** - Fetches world + subdivision TopoJSON via `Promise.allSettled` with `safeFetch()` wrapper, decodes via `topoUtils.js`, creates `GeoJsonDataSource` entities with population coloring, gracefully skips failed subdivisions
+- **cityLayer.js** - Loads `cities.geojson` with response.ok + GeoJSON structure validation, creates point + label entities with distance-based LOD visibility
 - **buildingsLayer.js** - Loads Cesium OSM Buildings (Ion Asset 96188) as `Cesium3DTileset`
 - **topoUtils.js** - Standalone `decodeTopo()` function (handles Polygon, MultiPolygon, GeometryCollection, null geometry filtering) + `pClr()` population color function
 
-### `src/data/` (unchanged from pre-migration)
+### `src/data/`
 - **countries.js** (~660 lines) - Hierarchical data array with 174 countries/territories, 575+ subdivisions
-- **index.js** (~325 lines) - Computed exports: ISO_MAP, MP, WORLD_POP, RC, SUB_CONFIGS (23 entries), COUNTY_CONFIG, findCountry()
+- **index.js** (~280 lines) - Computed exports: ISO_MAP, MP, WORLD_POP, RC, SUB_CONFIGS (23 entries), COUNTY_CONFIG, findCountry() (precomputed hash), extractIso3166_2Suffix() (shared helper)
 - **idMap.js** (4 lines) - TopoJSON feature ID → country name mapping
 - **us-counties/** (11 files) - Lazy-loaded county data for 10 US states, 1,040 total counties
 
@@ -147,4 +145,5 @@ Modular CesiumJS setup:
 - **Local TopoJSON** files in `public/topo/` for 18 countries without CDN sources
 
 ## Update History
+- 2026-02-07: Updated for code review refactoring (decomposed init, virtualized list, resilient fetching, shared helpers, ARIA)
 - 2026-02-06: Major restructure - Three.js monolith replaced by CesiumJS multi-file architecture

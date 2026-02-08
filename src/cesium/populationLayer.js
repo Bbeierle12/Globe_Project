@@ -49,7 +49,8 @@ function stylePopulationEntity(entity, pop) {
   entity.polygon.outline = false;
 }
 
-async function createPopulationLayer(viewer) {
+async function createPopulationLayer(viewer, options) {
+  var fetchFn = (options && options.fetchFn) || fetch;
   var subdivisionMaps = buildSubdivisionMaps();
   var skipNames = {};
   SUB_CONFIGS.forEach(function(cfg) {
@@ -75,7 +76,7 @@ async function createPopulationLayer(viewer) {
   }
 
   function safeFetch(url) {
-    return fetch(url).then(function(r) {
+    return fetchFn(url).then(function(r) {
       if (!r.ok) throw new Error("HTTP " + r.status + " for " + url);
       return r.json();
     });
@@ -221,4 +222,4 @@ async function createPopulationLayer(viewer) {
   };
 }
 
-export { createPopulationLayer, getSelectionKey };
+export { createPopulationLayer, getSelectionKey, buildSubdivisionMaps };

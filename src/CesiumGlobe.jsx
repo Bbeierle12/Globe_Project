@@ -184,6 +184,8 @@ function cleanupAll(resources) {
 
 // --- Component ---
 
+export { markerSize, getEntryHeight, getPickedEntry };
+
 export default function CesiumGlobe(props) {
   var onHover = props.onHover;
   var onSelect = props.onSelect;

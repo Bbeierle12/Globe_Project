@@ -1,7 +1,7 @@
 ---
 created: 2026-02-05T21:55:26Z
-last_updated: 2026-02-06T20:37:15Z
-version: 1.2
+last_updated: 2026-02-07T17:24:29Z
+version: 1.3
 author: Claude Code PM System
 ---
 
@@ -36,7 +36,9 @@ var n = {}; for (var k in prev) n[k] = prev[k]; n[key] = value;
 - Destructuring (`var { a, b } = obj`)
 - Spread operator (`...`)
 - `class` syntax
-- `async`/`await`
+
+### Exception: async/await
+`async`/`await` is used in CesiumJS init functions (e.g., `createTerrainProvider()`, `createPopulationLayer()`) where the init effect orchestrates multiple async setup steps. Keep usage limited to init flows.
 
 ## Naming Conventions
 
@@ -73,27 +75,22 @@ Internal utility functions use terse names:
 - `tier()` - Population tier label
 
 ### Variables (Short)
-- `R` - Globe radius
-- `gg` - Globe group (Three.js)
-- `rc` - Raycaster
-- `rv` - Rotation velocity
-- `af` - Animation frame ID
-- `mk` - Marker mesh
-- `dm` - Data map
+- `MP` - Max population (for color normalization)
+- `RC` - Region colors map
 
-### React Refs
+### React Refs (CesiumGlobe.jsx)
 - `mountRef` - DOM mount element
-- `hovRef` - Current hover state
-- `arRef` - Auto-rotate flag
-- `mkRef` - Markers registry
-- `visibleMkRef` - Visible markers for raycaster
-- `countyTopoRef` - Cached county topology data
-- `countyMkRef` - County markers Map (keyed by state FIPS)
+- `viewerRef` - CesiumJS Viewer instance
+- `handlerRef` - ScreenSpaceEventHandler
+- `onHoverRef` / `onSelectRef` - Callback refs (avoid stale closures)
+- `autoRotateRef` - Auto-rotate flag
+- `markersRef` - Marker registry (`{country, subdivisionsByIso, countiesByFp}`)
+- `layersRef` - Layer registry (`{population, cities, buildings}`)
 
 ## CSS Style
 
-### Inline Styles Only
-All styles are written as React inline style objects directly on elements. No external CSS classes are used for the Globe component.
+### Inline Styles + Global CSS
+Component styles are inline React style objects. Global styles (keyframes, scrollbar, reset) live in `index.css`. No CSS modules or styled-components.
 
 ```jsx
 <div style={{ padding: "4px 7px", margin: "1px 0", borderRadius: 4 }}>
@@ -116,7 +113,7 @@ All styles are written as React inline style objects directly on elements. No ex
 
 ### Font
 - System font stack: `'Segoe UI', system-ui, sans-serif`
-- Sizes: 7-20px range
+- Sizes: 9-20px range (minimum 9px after accessibility improvements)
 - Weights: 300 (light/numbers), 600 (labels), 700 (headings/ranks)
 
 ## Region Color System
@@ -130,12 +127,13 @@ Region names are prefixed by country to avoid collisions:
 
 ## File Organization
 
-- One monolithic component (`Globe.jsx`) for all UI logic
+- Multi-component architecture: `App.jsx` (state hub) + `CesiumGlobe.jsx` (3D engine) + `Sidebar.jsx` (UI) + `Tooltip.jsx` (overlay)
+- CesiumJS modules in `src/cesium/`: terrain, population, cities, buildings, topo utilities
 - Data separated into `src/data/` with barrel export via `index.js`
 - County data in `src/data/us-counties/` with lazy-loaded dynamic imports
-- WebGPU compute shaders in `src/webgpu/county-compute.js`
-- Lookup maps built at module scope (outside component)
+- Lookup maps and precomputed hashes built at module scope (outside component)
 - Computed values (ISO_MAP, MP, WORLD_POP) in data index file
+- Shared helper functions exported from `index.js` (e.g., `extractIso3166_2Suffix`)
 
 ## Adding New Countries with Subdivisions
 
@@ -146,21 +144,27 @@ Pattern for adding a new country's subdivisions (data-driven via SUB_CONFIGS):
    - Add region colors to `RC` with country-prefix (e.g., `"BR Southeast": "#e74c3c"`)
    - Add a `SUB_CONFIGS` entry with: `iso`, `url`, `objectName`, `codeField`, `extractCode`, `skipName`
 3. **If using local TopoJSON**: Place the `.json` file in `public/topo/` and use relative URL `/topo/{file}.json`
-4. **No changes needed in `Globe.jsx`** - it iterates SUB_CONFIGS generically
+4. **No changes needed in CesiumGlobe or populationLayer** - they iterate SUB_CONFIGS generically
 
 ### SUB_CONFIGS Entry Template
 ```js
+// For countries using iso_3166_2 codes (most common pattern):
 {
   iso: "XXX",
   url: "/topo/xx-subdivisions.json",
   objectName: "ne_10m_admin_1_states_provinces",
   codeField: "sc",
-  extractCode: function(f) {
-    var code = f.properties && f.properties.iso_3166_2;
-    if (!code) return null;
-    var parts = code.split("-");
-    return parts.length > 1 ? parts[1] : code;
-  },
+  extractCode: extractIso3166_2Suffix,  // shared helper from index.js
+  skipName: "Country Name"
+}
+
+// For countries needing custom code extraction:
+{
+  iso: "XXX",
+  url: "https://cdn.example.com/topo.json",
+  objectName: "custom_object_name",
+  codeField: "fp",
+  extractCode: function(f) { return f.properties.custom_code; },
   skipName: "Country Name"
 }
 ```
@@ -172,7 +176,7 @@ Pattern for adding county data for additional US states:
 1. **Generate county file** using `generate_counties.py` script (in scratchpad) with Census Bureau data
 2. **Create `src/data/us-counties/{FIPS}.js`** exporting `COUNTIES_{FIPS}` array
 3. **Add entry to `src/data/us-counties/index.js`** in `COUNTY_FILE_MAP`
-4. **No changes needed in `Globe.jsx`** - it dynamically checks `COUNTY_FILE_MAP` for available states
+4. **No changes needed in CesiumGlobe** - it dynamically checks `COUNTY_FILE_MAP` for available states
 
 ### County Data Entry Format
 ```js
