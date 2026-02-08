@@ -74,11 +74,28 @@ async function createPopulationLayer(viewer) {
     indexEntity(entity, entry);
   }
 
-  var fetches = [fetch(EARTH_TOPO_URL).then(function(r) { return r.json(); })];
+  function safeFetch(url) {
+    return fetch(url).then(function(r) {
+      if (!r.ok) throw new Error("HTTP " + r.status + " for " + url);
+      return r.json();
+    });
+  }
+
+  var fetches = [safeFetch(EARTH_TOPO_URL)];
   SUB_CONFIGS.forEach(function(cfg) {
-    fetches.push(fetch(cfg.url).then(function(r) { return r.json(); }));
+    fetches.push(safeFetch(cfg.url));
   });
-  var results = await Promise.all(fetches);
+  var settled = await Promise.allSettled(fetches);
+
+  if (settled[0].status !== "fulfilled") {
+    throw new Error("Failed to load world TopoJSON: " + (settled[0].reason || "unknown"));
+  }
+
+  var results = settled.map(function(r, i) {
+    if (r.status === "fulfilled") return r.value;
+    console.warn("Failed to load subdivision data for " + (i > 0 ? SUB_CONFIGS[i - 1].iso : "world") + ":", r.reason);
+    return null;
+  });
 
   var worldGeo = decodeTopo(results[0], "countries");
   var worldFeatures = [];
@@ -120,6 +137,7 @@ async function createPopulationLayer(viewer) {
   for (var i = 0; i < SUB_CONFIGS.length; i++) {
     var cfg = SUB_CONFIGS[i];
     var topo = results[i + 1];
+    if (!topo) continue;
     var geo = decodeTopo(topo, cfg.objectName);
     var map = subdivisionMaps[cfg.iso] || {};
     var featureToEntry = new Map();

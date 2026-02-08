@@ -1,13 +1,192 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { COUNTRIES, ISO_MAP, WORLD_POP, MP, RC } from "../data/index.js";
 import { COUNTY_FILE_MAP } from "../data/us-counties/index.js";
 import { pClr } from "../cesium/topoUtils.js";
+
+var ITEM_HEIGHT = 30;
+var COUNTY_ITEM_HEIGHT = 24;
+var OVERSCAN = 10;
 
 function fmt(n) {
   if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
   if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
   return String(n);
+}
+
+var _colorCache = new Map();
+function cachedClr(pop) {
+  var cached = _colorCache.get(pop);
+  if (cached) return cached;
+  var rgb = pClr(pop);
+  var str = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+  _colorCache.set(pop, str);
+  return str;
+}
+
+function itemKey(d) {
+  if (d.t === "county") return "county:" + d.fips;
+  if (d.t === "s") return "s:" + d.parentIso + ":" + (d.fp || d.sc || d.n);
+  if (d.t === "city") return "city:" + d.la + ":" + d.lo;
+  return "c:" + d.iso;
+}
+
+function VirtualList(props) {
+  var sorted = props.sorted;
+  var sel = props.sel;
+  var setSel = props.setSel;
+  var expanded = props.expanded;
+  var toggleExpand = props.toggleExpand;
+  var expandedStates = props.expandedStates;
+  var toggleExpandState = props.toggleExpandState;
+  var countyLoading = props.countyLoading;
+  var containerRef = useRef(null);
+  var _s = useState(0);
+  var scrollTop = _s[0];
+  var setScrollTop = _s[1];
+
+  var onScroll = useCallback(function() {
+    if (containerRef.current) setScrollTop(containerRef.current.scrollTop);
+  }, [setScrollTop]);
+
+  var totalHeight = useMemo(function() {
+    var h = 0;
+    for (var i = 0; i < sorted.length; i++) {
+      h += sorted[i].depth === 2 ? COUNTY_ITEM_HEIGHT : ITEM_HEIGHT;
+    }
+    return h;
+  }, [sorted]);
+
+  var containerHeight = containerRef.current ? containerRef.current.clientHeight : 400;
+
+  var visible = useMemo(function() {
+    var items = [];
+    var y = 0;
+    var countryRank = 0;
+    var subRank = 0;
+    var countyRank = 0;
+    var startY = scrollTop - OVERSCAN * ITEM_HEIGHT;
+    var endY = scrollTop + containerHeight + OVERSCAN * ITEM_HEIGHT;
+
+    for (var i = 0; i < sorted.length; i++) {
+      var item = sorted[i];
+      var h = item.depth === 2 ? COUNTY_ITEM_HEIGHT : ITEM_HEIGHT;
+      if (item.depth === 0) { countryRank++; subRank = 0; countyRank = 0; }
+      else if (item.depth === 1) { subRank++; countyRank = 0; }
+      else { countyRank++; }
+      if (y + h > startY && y < endY) {
+        items.push({
+          item: item, top: y,
+          rank: item.depth === 2 ? countyRank : item.depth === 1 ? subRank : countryRank
+        });
+      }
+      y += h;
+    }
+    return items;
+  }, [sorted, scrollTop, containerHeight]);
+
+  return (
+    <div ref={containerRef} onScroll={onScroll}
+      style={{ flex: 1, overflowY: "auto", padding: "0 6px 6px", position: "relative" }}>
+      <div style={{ height: totalHeight, position: "relative" }}>
+        {visible.map(function(v) {
+          var d = v.item.entry;
+          var depth = v.item.depth;
+          var rank = v.rank;
+          var pct = (d.p / MP) * 100;
+          var isSel = sel && sel.n === d.n && sel.t === d.t &&
+            (d.t === "county" ? sel.fips === d.fips :
+             d.t === "s" ? sel.parentIso === d.parentIso && (sel.fp || sel.sc || sel.n) === (d.fp || d.sc || d.n) :
+             d.t === "city" ? sel.la === d.la && sel.lo === d.lo :
+             sel.iso === d.iso);
+          var clr = cachedClr(d.p);
+          var isSub = depth === 1;
+          var isCounty = depth === 2;
+          var rCol = d.rg ? RC[d.rg] : null;
+          var hasSubs = !isSub && !isCounty && d.subdivisions && d.subdivisions.length > 0;
+          var isExp = !isSub && !isCounty && d.iso && expanded[d.iso];
+          var parentCountry = isSub && d.parentIso ? ISO_MAP[d.parentIso] : null;
+          var hasCounties = isSub && d.parentIso === "USA" && d.fp && COUNTY_FILE_MAP[d.fp];
+          var isStateExp = hasCounties && expandedStates[d.fp];
+          var isCountyLoading = hasCounties && countyLoading[d.fp];
+          var ml = isCounty ? 48 : isSub ? 24 : 0;
+
+          return (
+            <div
+              key={itemKey(d)}
+              onClick={function() { setSel(d); }}
+              style={{
+                position: "absolute", top: v.top, left: 0, right: 0,
+                height: isCounty ? COUNTY_ITEM_HEIGHT : ITEM_HEIGHT,
+                padding: isCounty ? "2px 7px" : "4px 7px",
+                borderRadius: 4, cursor: "pointer",
+                background: isSel ? "rgba(58,128,224,0.08)" : "transparent",
+                border: isSel ? "1px solid rgba(58,128,224,0.2)" : "1px solid transparent",
+                marginLeft: ml, boxSizing: "border-box",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+                  {hasSubs && (
+                    <button
+                      onClick={function(e) { e.stopPropagation(); toggleExpand(d.iso); }}
+                      aria-label={isExp ? "Collapse " + d.n : "Expand " + d.n}
+                      style={{
+                        fontSize: 9, color: "#4a6a88", cursor: "pointer", width: 16, height: 16,
+                        textAlign: "center", flexShrink: 0, userSelect: "none",
+                        transition: "transform 0.15s", transform: isExp ? "rotate(90deg)" : "rotate(0deg)",
+                        background: "none", border: "none", padding: 0, lineHeight: "16px",
+                      }}
+                    >&#9654;</button>
+                  )}
+                  {hasCounties && (
+                    <button
+                      onClick={function(e) { e.stopPropagation(); toggleExpandState(d.fp); }}
+                      aria-label={isStateExp ? "Collapse counties" : "Expand counties"}
+                      style={{
+                        fontSize: 8, color: isCountyLoading ? "#4d9ae8" : "#4a6a88", cursor: "pointer",
+                        width: 16, height: 16, textAlign: "center", flexShrink: 0, userSelect: "none",
+                        transition: "transform 0.15s", transform: isStateExp ? "rotate(90deg)" : "rotate(0deg)",
+                        background: "none", border: "none", padding: 0, lineHeight: "16px",
+                      }}
+                    >{isCountyLoading ? "\u25CB" : "\u25B6"}</button>
+                  )}
+                  {!hasSubs && !isSub && !isCounty && <span style={{ width: 16, flexShrink: 0 }} />}
+                  {isSub && !hasCounties && <span style={{ width: 16, flexShrink: 0 }} />}
+                  <span style={{ fontSize: 9, color: "#354a60", width: 20, textAlign: "right", fontWeight: 700, flexShrink: 0 }}>{rank}</span>
+                  <div style={{ width: isCounty ? 4 : 6, height: isCounty ? 4 : 6, borderRadius: 2, background: clr, flexShrink: 0 }} />
+                  <span style={{
+                    fontSize: isCounty ? 11 : 12, fontWeight: 600,
+                    color: isSel ? "#4d9ae8" : isCounty ? "#8a9ab0" : "#a8b8cc",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>{d.n}</span>
+                  {isSub && parentCountry && (
+                    <span style={{ fontSize: 8, color: "#5ea8f0", background: "rgba(94,168,240,0.1)", padding: "0 3px", borderRadius: 2, flexShrink: 0 }}>
+                      {parentCountry.iso}
+                    </span>
+                  )}
+                  {isSub && rCol && (
+                    <span style={{ fontSize: 8, color: rCol, background: rCol + "15", padding: "0 3px", borderRadius: 2, flexShrink: 0 }}>
+                      {d.rg.slice(0, 2)}
+                    </span>
+                  )}
+                  {isCounty && (
+                    <span style={{ fontSize: 8, color: "#6a7a8a", background: "rgba(106,122,138,0.1)", padding: "0 3px", borderRadius: 2, flexShrink: 0 }}>
+                      CTY
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: isCounty ? 11 : 12, fontWeight: 700, color: "#4d9ae8", flexShrink: 0, marginLeft: 4 }}>{fmt(d.p)}</span>
+              </div>
+              <div style={{ height: 2, background: "rgba(40,60,100,0.12)", borderRadius: 2, marginLeft: isCounty ? 24 : hasSubs || (!isSub && !isCounty) ? 42 : 30, overflow: "hidden" }}>
+                <div style={{ width: pct + "%", height: "100%", borderRadius: 2, background: clr, opacity: 0.6 }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function tier(p) {
@@ -120,7 +299,8 @@ export default function Sidebar(props) {
       : null;
 
   return (
-    <div
+    <nav
+      aria-label="Population data sidebar"
       style={{
         width: 330,
         background: "rgba(6,10,20,0.94)",
@@ -144,7 +324,7 @@ export default function Sidebar(props) {
           />
           <span style={{ fontSize: 16, fontWeight: 700, color: "#dce6f2" }}>Population Globe</span>
         </div>
-        <div style={{ fontSize: 10, color: "#4a6a88", marginLeft: 13, marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: "#4a6a88", marginLeft: 13, marginTop: 2 }}>
           {COUNTRIES.length} countries · 2025
         </div>
       </div>
@@ -152,6 +332,7 @@ export default function Sidebar(props) {
       <div style={{ padding: "6px 14px 4px" }}>
         <input
           type="text"
+          aria-label="Search countries, regions, and capitals"
           placeholder="Search name, region, capital..."
           value={search}
           onChange={function(e) {
@@ -190,234 +371,18 @@ export default function Sidebar(props) {
             color: autoR ? "#4d9ae8" : "#4a6a88",
             borderRadius: 4,
             cursor: "pointer",
-            fontSize: 9,
+            fontSize: 11,
             fontWeight: 600,
           }}
         >
           {autoR ? "Rotating" : "Paused"}
         </button>
-        <span style={{ fontSize: 9, color: "#354a60" }}>{sorted.length} entries</span>
+        <span style={{ fontSize: 10, color: "#354a60" }}>{sorted.length} entries</span>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 6px 6px" }}>
-        {(function() {
-          var countryRank = 0;
-          var subRank = 0;
-          var countyRank = 0;
-          return sorted.map(function(item) {
-            var d = item.entry;
-            var depth = item.depth;
-
-            if (depth === 0) {
-              countryRank++;
-              subRank = 0;
-              countyRank = 0;
-            } else if (depth === 1) {
-              subRank++;
-              countyRank = 0;
-            } else {
-              countyRank++;
-            }
-
-            var pct = (d.p / MP) * 100;
-            var isSel = sel && sel.n === d.n && sel.t === d.t;
-            var rgb = pClr(d.p);
-            var clr = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
-            var isSub = depth === 1;
-            var isCounty = depth === 2;
-            var rCol = d.rg ? RC[d.rg] : null;
-            var hasSubs = !isSub && !isCounty && d.subdivisions && d.subdivisions.length > 0;
-            var isExp = !isSub && !isCounty && d.iso && expanded[d.iso];
-            var parentCountry = isSub && d.parentIso ? ISO_MAP[d.parentIso] : null;
-            var hasCounties = isSub && d.parentIso === "USA" && d.fp && COUNTY_FILE_MAP[d.fp];
-            var isStateExp = hasCounties && expandedStates[d.fp];
-            var isCountyLoading = hasCounties && countyLoading[d.fp];
-            var ml = isCounty ? 48 : isSub ? 24 : 0;
-            var rank = isCounty ? countyRank : isSub ? subRank : countryRank;
-
-            return (
-              <div
-                key={(d.parentFp || d.parentIso || "") + d.n + d.t + (d.fips || "")}
-                onClick={function() {
-                  setSel(d);
-                }}
-                style={{
-                  padding: isCounty ? "2px 7px" : "4px 7px",
-                  margin: "1px 0",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  background: isSel ? "rgba(58,128,224,0.08)" : "transparent",
-                  border: isSel ? "1px solid rgba(58,128,224,0.2)" : "1px solid transparent",
-                  marginLeft: ml,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 1,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                    {hasSubs && (
-                      <span
-                        onClick={function(e) {
-                          e.stopPropagation();
-                          toggleExpand(d.iso);
-                        }}
-                        style={{
-                          fontSize: 9,
-                          color: "#4a6a88",
-                          cursor: "pointer",
-                          width: 12,
-                          textAlign: "center",
-                          flexShrink: 0,
-                          userSelect: "none",
-                          transition: "transform 0.15s",
-                          transform: isExp ? "rotate(90deg)" : "rotate(0deg)",
-                          display: "inline-block",
-                        }}
-                      >
-                        &#9654;
-                      </span>
-                    )}
-                    {hasCounties && (
-                      <span
-                        onClick={function(e) {
-                          e.stopPropagation();
-                          toggleExpandState(d.fp);
-                        }}
-                        style={{
-                          fontSize: 8,
-                          color: isCountyLoading ? "#4d9ae8" : "#4a6a88",
-                          cursor: "pointer",
-                          width: 12,
-                          textAlign: "center",
-                          flexShrink: 0,
-                          userSelect: "none",
-                          transition: "transform 0.15s",
-                          transform: isStateExp ? "rotate(90deg)" : "rotate(0deg)",
-                          display: "inline-block",
-                        }}
-                      >
-                        {isCountyLoading ? "\u25CB" : "\u25B6"}
-                      </span>
-                    )}
-                    {!hasSubs && !isSub && !isCounty && <span style={{ width: 12, flexShrink: 0 }} />}
-                    {isSub && !hasCounties && <span style={{ width: 12, flexShrink: 0 }} />}
-                    <span
-                      style={{
-                        fontSize: 9,
-                        color: "#354a60",
-                        width: 20,
-                        textAlign: "right",
-                        fontWeight: 700,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {rank}
-                    </span>
-                    <div
-                      style={{
-                        width: isCounty ? 4 : 6,
-                        height: isCounty ? 4 : 6,
-                        borderRadius: 2,
-                        background: clr,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: isCounty ? 10 : 11,
-                        fontWeight: 600,
-                        color: isSel ? "#4d9ae8" : isCounty ? "#8a9ab0" : "#a8b8cc",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {d.n}
-                    </span>
-                    {isSub && parentCountry && (
-                      <span
-                        style={{
-                          fontSize: 7,
-                          color: "#5ea8f0",
-                          background: "rgba(94,168,240,0.1)",
-                          padding: "0 3px",
-                          borderRadius: 2,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {parentCountry.iso}
-                      </span>
-                    )}
-                    {isSub && rCol && (
-                      <span
-                        style={{
-                          fontSize: 7,
-                          color: rCol,
-                          background: rCol + "15",
-                          padding: "0 3px",
-                          borderRadius: 2,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {d.rg.slice(0, 2)}
-                      </span>
-                    )}
-                    {isCounty && (
-                      <span
-                        style={{
-                          fontSize: 7,
-                          color: "#6a7a8a",
-                          background: "rgba(106,122,138,0.1)",
-                          padding: "0 3px",
-                          borderRadius: 2,
-                          flexShrink: 0,
-                        }}
-                      >
-                        CTY
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    style={{
-                      fontSize: isCounty ? 10 : 11,
-                      fontWeight: 700,
-                      color: "#4d9ae8",
-                      flexShrink: 0,
-                      marginLeft: 4,
-                    }}
-                  >
-                    {fmt(d.p)}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    height: 2,
-                    background: "rgba(40,60,100,0.12)",
-                    borderRadius: 2,
-                    marginLeft: isCounty ? 24 : hasSubs || (!isSub && !isCounty) ? 42 : 30,
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: pct + "%",
-                      height: "100%",
-                      borderRadius: 2,
-                      background: clr,
-                      opacity: 0.6,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          });
-        })()}
-      </div>
+      <VirtualList sorted={sorted} sel={sel} setSel={setSel} expanded={expanded} toggleExpand={toggleExpand}
+        expandedStates={expandedStates} toggleExpandState={toggleExpandState} countyLoading={countyLoading}
+        loadedCounties={loadedCounties} />
 
       {sel && (
         <div
@@ -433,7 +398,7 @@ export default function Sidebar(props) {
             <span style={{ fontSize: 14, fontWeight: 700, color: "#dce6f2" }}>{sel.n}</span>
             <span
               style={{
-                fontSize: 7,
+                fontSize: 9,
                 fontWeight: 700,
                 padding: "1px 5px",
                 borderRadius: 3,
@@ -460,7 +425,7 @@ export default function Sidebar(props) {
             {(isSt || isCty) && (
               <span
                 style={{
-                  fontSize: 8,
+                  fontSize: 9,
                   fontWeight: 600,
                   color: tier(sel.p).c,
                   background: tier(sel.p).c + "18",
@@ -474,7 +439,7 @@ export default function Sidebar(props) {
             {isCty && selParentState && (
               <span
                 style={{
-                  fontSize: 7,
+                  fontSize: 9,
                   color: "#5ea8f0",
                   background: "rgba(94,168,240,0.1)",
                   padding: "1px 4px",
@@ -561,7 +526,7 @@ export default function Sidebar(props) {
 
           {!isSt && !isCty && (
             <div>
-              <div style={{ fontSize: 9, color: "#354a60" }}>
+              <div style={{ fontSize: 10, color: "#354a60" }}>
                 {Number(sel.la).toFixed(2)}° · {Number(sel.lo).toFixed(2)}°
               </div>
               {sel.subdivisions && sel.subdivisions.length > 0 && (
@@ -582,7 +547,7 @@ export default function Sidebar(props) {
           display: "flex",
           alignItems: "center",
           gap: 4,
-          fontSize: 8,
+          fontSize: 10,
           color: "#354a60",
         }}
       >
@@ -597,6 +562,6 @@ export default function Sidebar(props) {
         />
         <span>High</span>
       </div>
-    </div>
+    </nav>
   );
 }

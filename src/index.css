@@ -9,3 +9,11 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
 }
+
+@keyframes globespin {
+  to { transform: rotate(360deg); }
+}
+
+*::-webkit-scrollbar { width: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(50,100,180,0.15); border-radius: 2px; }

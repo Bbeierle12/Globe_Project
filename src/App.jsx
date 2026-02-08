@@ -107,12 +107,6 @@ function App() {
         countyLoading={countyLoading}
         loadedCounties={loadedCounties}
       />
-      <style
-        dangerouslySetInnerHTML={{
-          __html:
-            "@keyframes globespin{to{transform:rotate(360deg)}}*::-webkit-scrollbar{width:4px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:rgba(50,100,180,0.15);border-radius:2px}",
-        }}
-      />
     </div>
   );
 }

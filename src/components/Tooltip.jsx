@@ -6,6 +6,8 @@ export default function Tooltip(props) {
 
   return (
     <div
+      role="tooltip"
+      aria-live="polite"
       style={{
         position: "absolute",
         top: 12,
@@ -24,7 +26,7 @@ export default function Tooltip(props) {
         <span style={{ fontSize: 14, fontWeight: 700, color: "#dce6f2" }}>{hov.n}</span>
         <span
           style={{
-            fontSize: 7,
+            fontSize: 9,
             fontWeight: 700,
             padding: "1px 5px",
             borderRadius: 3,
@@ -58,7 +60,7 @@ export default function Tooltip(props) {
         </span>
       </div>
       <div style={{ fontSize: 18, fontWeight: 300, color: "#4d9ae8" }}>{(hov.p || 0).toLocaleString()}</div>
-      {hov.rg && <div style={{ fontSize: 10, color: RC[hov.rg] || "#7b8fa8" }}>{hov.rg}{hov.cp ? " · " + hov.cp : ""}</div>}
+      {hov.rg && <div style={{ fontSize: 11, color: RC[hov.rg] || "#7b8fa8" }}>{hov.rg}{hov.cp ? " · " + hov.cp : ""}</div>}
     </div>
   );
 }

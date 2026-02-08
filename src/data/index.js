@@ -63,240 +63,24 @@ var SUB_CONFIGS = [
     },
     skipName: "China"
   },
-  {
-    iso: "BRA",
-    url: "/topo/br-states.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Brazil"
-  },
-  {
-    iso: "COL",
-    url: "/topo/co-departments.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Colombia"
-  },
-  {
-    iso: "PER",
-    url: "/topo/pe-regions.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Peru"
-  },
-  {
-    iso: "ARG",
-    url: "/topo/ar-provinces.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Argentina"
-  },
-  {
-    iso: "VEN",
-    url: "/topo/ve-states.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Venezuela"
-  },
-  {
-    iso: "CHL",
-    url: "/topo/cl-regions.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Chile"
-  },
-  {
-    iso: "ECU",
-    url: "/topo/ec-provinces.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Ecuador"
-  },
-  {
-    iso: "BOL",
-    url: "/topo/bo-departments.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Bolivia"
-  },
-  {
-    iso: "PRY",
-    url: "/topo/py-departments.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Paraguay"
-  },
-  {
-    iso: "URY",
-    url: "/topo/uy-departments.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Uruguay"
-  },
-  {
-    iso: "GUY",
-    url: "/topo/gy-regions.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Guyana"
-  },
-  {
-    iso: "SUR",
-    url: "/topo/sr-districts.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Suriname"
-  },
-  {
-    iso: "GUF",
-    url: "/topo/gf-territory.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "French Guiana"
-  },
-  {
-    iso: "IDN",
-    url: "/topo/id-provinces.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Indonesia"
-  },
-  {
-    iso: "PAK",
-    url: "/topo/pk-provinces.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Pakistan"
-  },
-  {
-    iso: "NGA",
-    url: "/topo/ng-states.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Nigeria"
-  },
-  {
-    iso: "BGD",
-    url: "/topo/bd-divisions.json",
-    objectName: "bd_divisions",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Bangladesh"
-  },
-  {
-    iso: "RUS",
-    url: "/topo/ru-regions.json",
-    objectName: "ne_10m_admin_1_states_provinces",
-    codeField: "sc",
-    extractCode: function(f) {
-      var code = f.properties && f.properties.iso_3166_2;
-      if (!code) return null;
-      var parts = code.split("-");
-      return parts.length > 1 ? parts[1] : code;
-    },
-    skipName: "Russia"
-  }
+  { iso: "BRA", url: "/topo/br-states.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Brazil" },
+  { iso: "COL", url: "/topo/co-departments.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Colombia" },
+  { iso: "PER", url: "/topo/pe-regions.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Peru" },
+  { iso: "ARG", url: "/topo/ar-provinces.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Argentina" },
+  { iso: "VEN", url: "/topo/ve-states.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Venezuela" },
+  { iso: "CHL", url: "/topo/cl-regions.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Chile" },
+  { iso: "ECU", url: "/topo/ec-provinces.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Ecuador" },
+  { iso: "BOL", url: "/topo/bo-departments.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Bolivia" },
+  { iso: "PRY", url: "/topo/py-departments.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Paraguay" },
+  { iso: "URY", url: "/topo/uy-departments.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Uruguay" },
+  { iso: "GUY", url: "/topo/gy-regions.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Guyana" },
+  { iso: "SUR", url: "/topo/sr-districts.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Suriname" },
+  { iso: "GUF", url: "/topo/gf-territory.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "French Guiana" },
+  { iso: "IDN", url: "/topo/id-provinces.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Indonesia" },
+  { iso: "PAK", url: "/topo/pk-provinces.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Pakistan" },
+  { iso: "NGA", url: "/topo/ng-states.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Nigeria" },
+  { iso: "BGD", url: "/topo/bd-divisions.json", objectName: "bd_divisions", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Bangladesh" },
+  { iso: "RUS", url: "/topo/ru-regions.json", objectName: "ne_10m_admin_1_states_provinces", codeField: "sc", extractCode: extractIso3166_2Suffix, skipName: "Russia" }
 ];
 
 var COUNTY_CONFIG = {
@@ -306,19 +90,24 @@ var COUNTY_CONFIG = {
   extractStateFips: function(f) { return String(f.id).substring(0, 2); }
 };
 
+var _countryByAlias = {};
+COUNTRIES.forEach(function(c) {
+  if (c.al) {
+    c.al.forEach(function(a) { _countryByAlias[a.toLowerCase()] = c; });
+  }
+});
+
 function findCountry(featureId) {
   var name = ID_MAP[String(featureId)];
   if (!name) return null;
-  var nl = name.toLowerCase();
-  for (var i = 0; i < COUNTRIES.length; i++) {
-    var c = COUNTRIES[i];
-    if (c.al) {
-      for (var j = 0; j < c.al.length; j++) {
-        if (c.al[j].toLowerCase() === nl) return c;
-      }
-    }
-  }
-  return null;
+  return _countryByAlias[name.toLowerCase()] || null;
 }
 
-export { COUNTRIES, ID_MAP, ISO_MAP, MP, WORLD_POP, RC, SUB_CONFIGS, COUNTY_CONFIG, findCountry };
+function extractIso3166_2Suffix(f) {
+  var code = f.properties && f.properties.iso_3166_2;
+  if (!code) return null;
+  var parts = code.split("-");
+  return parts.length > 1 ? parts[1] : code;
+}
+
+export { COUNTRIES, ID_MAP, ISO_MAP, MP, WORLD_POP, RC, SUB_CONFIGS, COUNTY_CONFIG, findCountry, extractIso3166_2Suffix };

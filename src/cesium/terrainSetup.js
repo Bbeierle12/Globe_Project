@@ -27,7 +27,7 @@ function applyTerrainVisualSettings(viewer) {
   viewer.scene.globe.showWaterEffect = true;
   viewer.scene.globe.dynamicAtmosphereLighting = true;
   viewer.scene.globe.dynamicAtmosphereLightingFromSun = true;
-  viewer.scene.globe.oceanNormalMapUrl = "/cesium/Assets/Textures/waterNormalsSmall.jpg";
+  viewer.scene.globe.oceanNormalMapUrl = Cesium.buildModuleUrl("Assets/Textures/waterNormalsSmall.jpg");
 }
 
 export { applyTerrainVisualSettings, configureIonToken, createTerrainProvider };

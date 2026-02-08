@@ -8,7 +8,9 @@ function minPopulationForCameraHeight(height) {
 
 async function createCityLayer(viewer) {
   var response = await fetch("/data/cities.geojson");
+  if (!response.ok) throw new Error("Failed to load cities: HTTP " + response.status);
   var geo = await response.json();
+  if (!geo || !geo.features) throw new Error("Invalid cities GeoJSON: missing features array");
 
   var dataSource = new Cesium.CustomDataSource("cities");
   dataSource.clustering.enabled = true;
