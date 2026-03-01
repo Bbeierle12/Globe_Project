@@ -4,14 +4,15 @@ use iced::{Element, Length};
 use crate::app::Message;
 use crate::data::types::Country;
 use crate::utils::format::format_population;
-use crate::utils::search::filter_countries;
-use crate::ui::details::{country_detail, DetailView};
+use crate::utils::search::{filter_countries, sort_by_population};
+use crate::ui::details::{country_detail, subdivision_detail, DetailView};
 
 /// Build the sidebar as an Iced Element.
 pub fn sidebar_view<'a>(
     countries: &'a [Country],
     search_query: &'a str,
     selected_index: Option<usize>,
+    selected_subdivision: Option<(usize, usize)>,
     expanded: &'a std::collections::HashSet<usize>,
     auto_rotate: bool,
 ) -> Element<'a, Message> {
@@ -29,7 +30,8 @@ pub fn sidebar_view<'a>(
         .spacing(8)
         .padding(8);
 
-    let filtered = filter_countries(countries, search_query);
+    let mut filtered = filter_countries(countries, search_query);
+    sort_by_population(countries, &mut filtered);
 
     let mut list_items: Vec<Element<'a, Message>> = Vec::new();
 
@@ -64,16 +66,15 @@ pub fn sidebar_view<'a>(
     let list = Column::with_children(list_items).spacing(2);
     let scrollable_list = scrollable(list).height(Length::Fill);
 
-    // Details panel for selected entity
-    let details: Element<'a, Message> = if let Some(sel_idx) = selected_index {
-        if sel_idx < countries.len() {
-            let detail = country_detail(&countries[sel_idx]);
-            detail_panel(detail)
-        } else {
-            text("").into()
+    // Details panel: show subdivision when selected, else country.
+    let details: Element<'a, Message> = match (selected_subdivision, selected_index) {
+        (Some((ci, si)), _) if ci < countries.len() && si < countries[ci].subdivisions.len() => {
+            detail_panel(subdivision_detail(&countries[ci].subdivisions[si]))
         }
-    } else {
-        text("Select a country").size(12).into()
+        (_, Some(ci)) if ci < countries.len() => {
+            detail_panel(country_detail(&countries[ci]))
+        }
+        _ => text("Select a country").size(12).into(),
     };
 
     let content = column![header, scrollable_list, details]
@@ -105,6 +106,9 @@ fn detail_panel(detail: DetailView) -> Element<'static, Message> {
     }
     if let Some(change) = detail.change {
         items.push(text(format!("Change: {change}")).size(12).into());
+    }
+    if let Some(age) = detail.median_age {
+        items.push(text(format!("Median age: {age}")).size(12).into());
     }
     if let Some(count) = detail.subdivision_count {
         items.push(text(format!("Subdivisions: {count}")).size(12).into());

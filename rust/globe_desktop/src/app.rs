@@ -1,10 +1,19 @@
 use std::collections::HashSet;
+use std::time::Duration;
 
-use iced::widget::{container, row, text};
-use iced::{Element, Length, Task, Theme};
+use iced::widget::{container, row};
+use iced::widget::shader::Shader;
+use iced::theme::Palette;
+use iced::{Color, Element, Length, Subscription, Task, Theme};
 
+use crate::data::loader::load_countries_from_str;
 use crate::data::types::Country;
+use crate::renderer::GlobeProgram;
 use crate::ui::sidebar::sidebar_view;
+use crate::ui::theme::GlobeTheme;
+
+/// Embedded country data (compiled into the binary at build time).
+const COUNTRIES_JSON: &str = include_str!("../assets/countries.json");
 
 /// Messages the application can receive.
 #[derive(Debug, Clone)]
@@ -21,6 +30,8 @@ pub enum Message {
     ToggleExpand(usize),
     /// Countries data finished loading.
     CountriesLoaded(Vec<Country>),
+    /// Animation tick for auto-rotation.
+    Tick,
 }
 
 /// Application state.
@@ -31,6 +42,8 @@ pub struct GlobeApp {
     pub selected_subdivision: Option<(usize, usize)>,
     pub expanded: HashSet<usize>,
     pub auto_rotate: bool,
+    /// Accumulated auto-rotation angle (radians). Combined with drag yaw in GlobeState.
+    pub rotation: f32,
 }
 
 impl GlobeApp {
@@ -42,8 +55,16 @@ impl GlobeApp {
             selected_subdivision: None,
             expanded: HashSet::new(),
             auto_rotate: true,
+            rotation: 0.0,
         };
-        (app, Task::none())
+        let load_task = Task::perform(
+            async {
+                load_countries_from_str(COUNTRIES_JSON)
+                    .unwrap_or_default()
+            },
+            Message::CountriesLoaded,
+        );
+        (app, load_task)
     }
 
     pub fn title(&self) -> String {
@@ -51,7 +72,17 @@ impl GlobeApp {
     }
 
     pub fn theme(&self) -> Theme {
-        Theme::Dark
+        Theme::custom(
+            "Globe",
+            Palette {
+                background: GlobeTheme::BACKGROUND,
+                text:       GlobeTheme::TEXT_PRIMARY,
+                primary:    GlobeTheme::ACCENT,
+                success:    Color::from_rgb(0.24, 0.65, 0.40),
+                warning:    Color::from_rgb(0.85, 0.60, 0.15),
+                danger:     Color::from_rgb(0.78, 0.25, 0.25),
+            },
+        )
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -91,8 +122,21 @@ impl GlobeApp {
             Message::CountriesLoaded(countries) => {
                 self.countries = countries;
             }
+            Message::Tick => {
+                if self.auto_rotate {
+                    self.rotation += 0.003;
+                }
+            }
         }
         Task::none()
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        if self.auto_rotate {
+            iced::time::every(Duration::from_millis(16)).map(|_| Message::Tick)
+        } else {
+            Subscription::none()
+        }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
@@ -100,20 +144,19 @@ impl GlobeApp {
             &self.countries,
             &self.search_query,
             self.selected_country,
+            self.selected_subdivision,
             &self.expanded,
             self.auto_rotate,
         );
 
-        // Globe placeholder — will be replaced with wgpu renderer
-        let globe_placeholder = container(
-            text("Globe Viewport (wgpu)").size(24),
-        )
+        let globe = Shader::new(GlobeProgram {
+            countries: self.countries.clone(),
+            rotation: self.rotation,
+        })
         .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill);
+        .height(Length::Fill);
 
-        let layout = row![sidebar, globe_placeholder];
+        let layout = row![sidebar, globe];
 
         container(layout)
             .width(Length::Fill)
