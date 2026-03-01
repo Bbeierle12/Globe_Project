@@ -1,0 +1,10 @@
+set(FILES
+    Include/GlobePopulation/GlobePopulationBus.h
+    Include/GlobePopulation/GlobePopulationTypeIds.h
+    Source/GlobePopulationModuleInterface.h
+    Source/GlobePopulationModuleInterface.cpp
+    Source/Clients/GlobePopulationSystemComponent.h
+    Source/Clients/GlobePopulationSystemComponent.cpp
+    Source/Clients/PopulationMarkerComponent.h
+    Source/Clients/PopulationMarkerComponent.cpp
+)

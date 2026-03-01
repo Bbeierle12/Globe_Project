@@ -1,0 +1,19 @@
+{
+    "project_name": "GlobeProject",
+    "project_id": "{globe-project-o3de-001}",
+    "version": "0.1.0",
+    "compatible_engines": [],
+    "engine": "",
+    "external_subdirectories": [
+        "Gem/GlobePopulation"
+    ],
+    "templates": [],
+    "gem_names": [
+        "GlobePopulation",
+        "CesiumForO3DE",
+        "ImGui"
+    ],
+    "icon_path": "preview.png",
+    "origin": "Globe_Project - Desktop refactoring from browser UI",
+    "display_name": "Globe Project"
+}
