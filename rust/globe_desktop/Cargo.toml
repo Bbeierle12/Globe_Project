@@ -1,0 +1,13 @@
+[package]
+name = "globe_desktop"
+version = "0.1.0"
+edition = "2024"
+description = "Desktop globe visualization using Iced"
+
+[dependencies]
+iced = { version = "0.14", features = ["tokio"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+pretty_assertions = "1"

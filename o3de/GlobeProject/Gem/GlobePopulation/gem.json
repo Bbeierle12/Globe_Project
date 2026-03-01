@@ -1,0 +1,13 @@
+{
+    "gem_name": "GlobePopulation",
+    "version": "0.1.0",
+    "display_name": "Globe Population",
+    "license": "Apache-2.0",
+    "origin": "Globe_Project",
+    "type": "Code",
+    "summary": "Population data layer and visualization for the Globe Project. Bridges Rust FFI data layer (search, formatting, country data) into O3DE system components.",
+    "canonical_tags": ["Gem"],
+    "user_tags": ["globe", "population", "geospatial"],
+    "icon_path": "preview.png",
+    "requirements": "Requires globe_ffi static library built from rust/globe_ffi"
+}
