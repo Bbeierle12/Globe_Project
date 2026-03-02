@@ -8,68 +8,8 @@
 
 #include <AzTest/AzTest.h>
 
-// Rust FFI declarations
-extern "C"
-{
-    // Lifecycle
-    int32_t globe_init(const char* json_ptr);
-    void globe_shutdown();
-    uint32_t globe_country_count();
-
-    // Formatting
-    char* globe_format_population(uint64_t population);
-    char* globe_format_density(double density);
-    char* globe_format_change(double pct);
-    void globe_free_string(char* ptr);
-    float globe_marker_size(uint64_t population, uint64_t max_population, float base, float range);
-
-    struct GlobeColorRgb
-    {
-        uint8_t r;
-        uint8_t g;
-        uint8_t b;
-    };
-    GlobeColorRgb globe_population_color(double normalized);
-
-    // Search
-    struct GlobeSearchResult
-    {
-        uint32_t index;
-        const char* name;
-        uint64_t population;
-    };
-    uint32_t globe_search(const char* query_ptr, GlobeSearchResult* out, uint32_t max_results);
-
-    // Country access
-    struct GlobeCountry
-    {
-        const char* name;
-        uint64_t population;
-        double lat;
-        double lon;
-        const char* iso;
-        uint32_t subdivision_count;
-        uint32_t index;
-    };
-    bool globe_get_country(uint32_t index, GlobeCountry* out);
-
-    struct GlobeSubdivision
-    {
-        const char* name;
-        uint64_t population;
-        double lat;
-        double lon;
-        double density;
-        const char* region;
-        const char* capital;
-        double area_km2;
-        double change_pct;
-        double median_age;
-        uint32_t country_index;
-        uint32_t sub_index;
-    };
-    bool globe_get_subdivision(uint32_t country_index, uint32_t sub_index, GlobeSubdivision* out);
-}
+// Auto-generated Rust FFI header (structs + function declarations)
+#include "globe_ffi.h"
 
 // Test JSON data (same structure as countries.json)
 static const char* TEST_JSON = R"([
@@ -350,6 +290,94 @@ TEST(GlobeFFI, PopulationColorClamp)
     EXPECT_EQ(above.r, one.r);
     EXPECT_EQ(above.g, one.g);
     EXPECT_EQ(above.b, one.b);
+}
+
+// ---- Strings reset tests ----
+
+TEST(GlobeFFI, StringsResetSafe)
+{
+    // Reset before init should not crash
+    globe_strings_reset();
+}
+
+TEST(GlobeFFI, StringsResetPreservesData)
+{
+    globe_init(TEST_JSON);
+
+    // Access some data to populate the string cache
+    GlobeCountry country = {};
+    EXPECT_TRUE(globe_get_country(0, &country));
+
+    // Reset strings — data should still be accessible
+    globe_strings_reset();
+
+    // Verify data is still intact (re-query after reset)
+    GlobeCountry country2 = {};
+    EXPECT_TRUE(globe_get_country(0, &country2));
+    EXPECT_STREQ(country2.name, "Testland");
+    EXPECT_EQ(country2.population, 50000000u);
+
+    globe_shutdown();
+}
+
+// ---- Subdivision detail tests (via FFI) ----
+
+TEST(GlobeFFI, SubdivisionAllFields)
+{
+    globe_init(TEST_JSON);
+
+    GlobeSubdivision sub = {};
+    EXPECT_TRUE(globe_get_subdivision(0, 1, &sub));
+    EXPECT_STREQ(sub.name, "South Province");
+    EXPECT_EQ(sub.population, 20000000u);
+    EXPECT_NEAR(sub.density, 500.0, 0.01);
+    EXPECT_STREQ(sub.capital, "Southburg");
+    EXPECT_STREQ(sub.region, "Southern");
+    EXPECT_NEAR(sub.area_km2, 40000.0, 0.01);
+    EXPECT_NEAR(sub.change_pct, 1.8, 0.01);
+    EXPECT_NEAR(sub.median_age, 38.0, 0.01);
+    EXPECT_EQ(sub.country_index, 0u);
+    EXPECT_EQ(sub.sub_index, 1u);
+
+    globe_shutdown();
+}
+
+TEST(GlobeFFI, SubdivisionNoSubdivisionsCountry)
+{
+    globe_init(TEST_JSON);
+
+    // Otherland (index 1) has no subdivisions
+    GlobeSubdivision sub = {};
+    EXPECT_FALSE(globe_get_subdivision(1, 0, &sub));
+
+    globe_shutdown();
+}
+
+// ---- Format density & change via FFI ----
+
+TEST(GlobeFFI, FormatDensityViaFFI)
+{
+    char* str = globe_format_density(500.0);
+    ASSERT_NE(str, nullptr);
+    // Should contain /km
+    EXPECT_NE(strstr(str, "/km"), nullptr);
+    globe_free_string(str);
+}
+
+TEST(GlobeFFI, FormatChangePositive)
+{
+    char* str = globe_format_change(3.7);
+    ASSERT_NE(str, nullptr);
+    EXPECT_STREQ(str, "+3.7%");
+    globe_free_string(str);
+}
+
+TEST(GlobeFFI, FormatChangeNegative)
+{
+    char* str = globe_format_change(-2.1);
+    ASSERT_NE(str, nullptr);
+    EXPECT_STREQ(str, "-2.1%");
+    globe_free_string(str);
 }
 
 AZ_UNIT_TEST_HOOK(DEFAULT_UNIT_TEST_ENV);

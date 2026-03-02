@@ -5,11 +5,17 @@
     "compatible_engines": [],
     "engine": "",
     "external_subdirectories": [
-        "Gem/GlobePopulation"
+        "Gem/GlobePopulation",
+        "Gem/GlobeLayers",
+        "Gem/GlobeOsintFeeds",
+        "Gem/GlobeUI"
     ],
     "templates": [],
     "gem_names": [
         "GlobePopulation",
+        "GlobeLayers",
+        "GlobeOsintFeeds",
+        "GlobeUI",
         "CesiumForO3DE",
         "ImGui"
     ],

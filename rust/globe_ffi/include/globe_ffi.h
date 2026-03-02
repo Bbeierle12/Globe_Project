@@ -137,4 +137,11 @@ float globe_marker_size(uint64_t population, uint64_t max_population, float base
  */
 struct GlobeColorRgb globe_population_color(double normalized);
 
+/**
+ * Reset (free) all cached FFI strings to reclaim memory.
+ * Safe to call periodically (e.g. every tick) — the next `globe_get_*` call
+ * will simply push new CStrings back into the cache.
+ */
+void globe_strings_reset(void);
+
 #endif  /* GLOBE_FFI_H */

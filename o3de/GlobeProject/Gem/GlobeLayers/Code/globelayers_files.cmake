@@ -1,0 +1,9 @@
+set(FILES
+    Include/GlobeLayers/GlobeLayersBus.h
+    Include/GlobeLayers/GlobeLayerNotificationBus.h
+    Include/GlobeLayers/GlobeLayersTypeIds.h
+    Source/GlobeLayersModuleInterface.h
+    Source/GlobeLayersModuleInterface.cpp
+    Source/Clients/GlobeLayersSystemComponent.h
+    Source/Clients/GlobeLayersSystemComponent.cpp
+)

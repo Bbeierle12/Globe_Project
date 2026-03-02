@@ -20,6 +20,20 @@ namespace GlobePopulation
         uint32_t subdivisionCount = 0;
     };
 
+    /// Subdivision detail for a specific country subdivision.
+    struct SubdivisionInfo
+    {
+        AZStd::string name;
+        uint64_t population{};
+        double lat{}, lon{};
+        double density{};
+        AZStd::string region;
+        AZStd::string capital;
+        double area_km2{};
+        double change_pct{};
+        double median_age{};
+    };
+
     /// Interface for the GlobePopulation system component.
     /// Accessed via EBus or AZ::Interface.
     class GlobePopulationRequests
@@ -42,6 +56,15 @@ namespace GlobePopulation
 
         /// Get population color as RGB (0-255) for a normalized value (0.0-1.0).
         virtual void GetPopulationColor(double normalized, uint8_t& r, uint8_t& g, uint8_t& b) const = 0;
+
+        /// Get subdivision detail for a given country and subdivision index.
+        virtual SubdivisionInfo GetSubdivision(uint32_t countryIndex, uint32_t subIndex) const = 0;
+
+        /// Format a density value (e.g. "2126/km²").
+        virtual AZStd::string FormatDensity(double density) const = 0;
+
+        /// Format a percent change (e.g. "+6.2%").
+        virtual AZStd::string FormatChange(double pct) const = 0;
     };
 
     class GlobePopulationBusTraits : public AZ::EBusTraits

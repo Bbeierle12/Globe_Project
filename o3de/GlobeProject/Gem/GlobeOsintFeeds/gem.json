@@ -1,0 +1,13 @@
+{
+    "gem_name": "GlobeOsintFeeds",
+    "version": "0.1.0",
+    "display_name": "Globe OSINT Feeds",
+    "license": "Apache-2.0",
+    "origin": "Globe_Project",
+    "type": "Code",
+    "summary": "External data feed integration for the Globe Project. Provides earthquake data (USGS GeoJSON) and future OSINT sources. Registers layers via GlobeLayerRequestBus.",
+    "canonical_tags": ["Gem"],
+    "user_tags": ["globe", "osint", "earthquake", "feeds"],
+    "icon_path": "preview.png",
+    "requirements": "Depends on GlobeLayers Gem"
+}

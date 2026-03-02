@@ -4,14 +4,8 @@
 #include <AzCore/Component/TickBus.h>
 #include <GlobePopulation/GlobePopulationBus.h>
 
-// Forward-declare the Rust FFI C types
-extern "C"
-{
-    struct GlobeCountry;
-    struct GlobeSubdivision;
-    struct GlobeSearchResult;
-    struct GlobeColorRgb;
-}
+// Auto-generated Rust FFI header provides struct definitions
+#include "globe_ffi.h"
 
 namespace GlobePopulation
 {
@@ -49,6 +43,9 @@ namespace GlobePopulation
         AZStd::string FormatPopulation(uint64_t population) const override;
         float GetMarkerSize(uint64_t population, uint64_t maxPopulation) const override;
         void GetPopulationColor(double normalized, uint8_t& r, uint8_t& g, uint8_t& b) const override;
+        SubdivisionInfo GetSubdivision(uint32_t countryIndex, uint32_t subIndex) const override;
+        AZStd::string FormatDensity(double density) const override;
+        AZStd::string FormatChange(double pct) const override;
 
     private:
         bool m_dataLoaded = false;

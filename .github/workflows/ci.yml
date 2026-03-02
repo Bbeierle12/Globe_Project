@@ -59,6 +59,27 @@ jobs:
           path: dist/
           retention-days: 7
 
+  rust-ffi:
+    name: Rust FFI (globe_ffi)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust/globe_ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/globe_ffi
+      - name: Check formatting
+        run: cargo fmt -- --check
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+      - name: Tests
+        run: cargo test
+
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest

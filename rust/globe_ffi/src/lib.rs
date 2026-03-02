@@ -260,6 +260,20 @@ pub extern "C" fn globe_population_color(normalized: f64) -> GlobeColorRgb {
     GlobeColorRgb { r, g, b }
 }
 
+// ---------- String memory management ----------
+
+/// Reset (free) all cached FFI strings to reclaim memory.
+/// Safe to call periodically (e.g. every tick) — the next `globe_get_*` call
+/// will simply push new CStrings back into the cache.
+#[unsafe(no_mangle)]
+pub extern "C" fn globe_strings_reset() {
+    if let Ok(mut data) = DATA.lock() {
+        if let Some(ref mut d) = *data {
+            d._strings.clear();
+        }
+    }
+}
+
 // ---------- Tests ----------
 
 #[cfg(test)]

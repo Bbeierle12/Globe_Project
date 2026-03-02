@@ -7,4 +7,7 @@ set(FILES
     Source/Clients/GlobePopulationSystemComponent.cpp
     Source/Clients/PopulationMarkerComponent.h
     Source/Clients/PopulationMarkerComponent.cpp
+    Source/Utils/IonApiClient.h
+    Source/Utils/IonApiClient.cpp
+    Source/Utils/TokenLoader.h
 )

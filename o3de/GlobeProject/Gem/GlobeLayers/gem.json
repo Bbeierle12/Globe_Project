@@ -1,0 +1,13 @@
+{
+    "gem_name": "GlobeLayers",
+    "version": "0.1.0",
+    "display_name": "Globe Layers",
+    "license": "Apache-2.0",
+    "origin": "Globe_Project",
+    "type": "Code",
+    "summary": "Layer registry service for the Globe Project. Provides layer registration, visibility toggling, and lifetime management. All data Gems register via GlobeLayerRequestBus; UI only talks to this bus.",
+    "canonical_tags": ["Gem"],
+    "user_tags": ["globe", "layers", "registry"],
+    "icon_path": "preview.png",
+    "requirements": ""
+}
