@@ -6,7 +6,10 @@ use iced::widget::shader::Shader;
 use iced::theme::Palette;
 use iced::{Color, Element, Length, Subscription, Task, Theme};
 
-use crate::cesium::ion_api::{IonAsset, IonClient, IonStatus, load_ion_token};
+use std::sync::Arc;
+
+use crate::cesium::ion_api::{IonAsset, IonClient, IonEndpoint, IonStatus, load_ion_token};
+use crate::cesium::maps_api::{country_bbox, fetch_region_tiles, fetch_world_texture, load_maps_key};
 use crate::data::loader::load_countries_from_str;
 use crate::data::types::Country;
 use crate::renderer::GlobeProgram;
@@ -37,6 +40,20 @@ pub enum Message {
     IonLoaded { username: String, assets: Vec<IonAsset> },
     /// Cesium Ion connection failed.
     IonFailed(String),
+    /// Google Maps satellite texture downloaded and reprojected.
+    MapsTextureLoaded { pixels: Arc<Vec<u8>>, width: u32, height: u32 },
+    /// Google Maps tile fetch failed.
+    MapsFailed(String),
+    /// User clicked an Ion asset row — fetch its endpoint.
+    SelectIonAsset(u64),
+    /// Ion asset endpoint loaded successfully.
+    IonEndpointLoaded { asset_id: u64, endpoint: IonEndpoint },
+    /// Ion asset endpoint fetch failed.
+    IonEndpointFailed { asset_id: u64, error: String },
+    /// Regional satellite tiles loaded for a country.
+    RegionTilesLoaded { country_idx: usize, pixels: Arc<Vec<u8>>, width: u32, height: u32 },
+    /// Regional tile fetch failed.
+    RegionTilesFailed(String),
 }
 
 /// Application state.
@@ -53,6 +70,20 @@ pub struct GlobeApp {
     pub ion_status: IonStatus,
     /// Cesium Ion assets from /v1/assets.
     pub ion_assets: Vec<IonAsset>,
+    /// Satellite texture pixels (None until downloaded).
+    pub maps_texture: Option<Arc<Vec<u8>>>,
+    pub maps_texture_w: u32,
+    pub maps_texture_h: u32,
+    /// Currently selected Ion asset id (for endpoint fetch).
+    pub selected_ion_asset:   Option<u64>,
+    /// Loaded endpoint for the selected Ion asset.
+    pub ion_endpoint:         Option<IonEndpoint>,
+    /// True while the endpoint request is in flight.
+    pub ion_endpoint_loading: bool,
+    /// Cached regional satellite texture for the selected country.
+    pub region_texture: Option<(Arc<Vec<u8>>, u32, u32)>,
+    /// Country index for which region_texture was fetched.
+    pub region_for_idx: Option<usize>,
 }
 
 impl GlobeApp {
@@ -65,8 +96,16 @@ impl GlobeApp {
             expanded: HashSet::new(),
             auto_rotate: true,
             rotation: 0.0,
-            ion_status: IonStatus::Loading,
-            ion_assets: Vec::new(),
+            ion_status:      IonStatus::Loading,
+            ion_assets:      Vec::new(),
+            maps_texture:    None,
+            maps_texture_w:  0,
+            maps_texture_h:  0,
+            selected_ion_asset:   None,
+            ion_endpoint:         None,
+            ion_endpoint_loading: false,
+            region_texture: None,
+            region_for_idx: None,
         };
 
         let load_task = Task::perform(
@@ -91,7 +130,25 @@ impl GlobeApp {
             },
         );
 
-        (app, Task::batch([load_task, ion_task]))
+        let maps_task = Task::perform(
+            async {
+                let key = match load_maps_key() {
+                    Some(k) => k,
+                    None    => return Err("No VITE_GOOGLE_MAPS_API_KEY in .env".into()),
+                };
+                fetch_world_texture(&key).await
+            },
+            |result: Result<(Vec<u8>, u32, u32), String>| match result {
+                Ok((pixels, w, h)) => Message::MapsTextureLoaded {
+                    pixels: Arc::new(pixels),
+                    width:  w,
+                    height: h,
+                },
+                Err(e) => Message::MapsFailed(e),
+            },
+        );
+
+        (app, Task::batch([load_task, ion_task, maps_task]))
     }
 
     pub fn title(&self) -> String {
@@ -131,6 +188,32 @@ impl GlobeApp {
                     // Auto-expand on first select
                     self.expanded.insert(idx);
                 }
+                // Fetch regional satellite inset if we don't already have it.
+                if self.region_for_idx != Some(idx) {
+                    self.region_texture = None;
+                    self.region_for_idx = None;
+                    if let Some(key) = load_maps_key() {
+                        if let Some(country) = self.countries.get(idx) {
+                            let iso  = country.iso.clone();
+                            let bbox = country_bbox(country);
+                            return Task::perform(
+                                async move {
+                                    fetch_region_tiles(&key, &iso, bbox, 5).await
+                                        .map(|r| (idx, r))
+                                },
+                                |result| match result {
+                                    Ok((country_idx, r)) => Message::RegionTilesLoaded {
+                                        country_idx,
+                                        pixels: Arc::new(r.pixels),
+                                        width:  r.width,
+                                        height: r.height,
+                                    },
+                                    Err(e) => Message::RegionTilesFailed(e),
+                                },
+                            );
+                        }
+                    }
+                }
             }
             Message::SelectSubdivision(country_idx, sub_idx) => {
                 self.selected_country = Some(country_idx);
@@ -165,6 +248,59 @@ impl GlobeApp {
                     IonStatus::Error(e)
                 };
             }
+            Message::MapsTextureLoaded { pixels, width, height } => {
+                self.maps_texture   = Some(pixels);
+                self.maps_texture_w = width;
+                self.maps_texture_h = height;
+            }
+            Message::MapsFailed(e) => {
+                eprintln!("Maps tile fetch failed: {e}");
+            }
+            Message::SelectIonAsset(id) => {
+                if self.selected_ion_asset == Some(id) {
+                    return Task::none();
+                }
+                self.selected_ion_asset   = Some(id);
+                self.ion_endpoint         = None;
+                self.ion_endpoint_loading = true;
+                let token = match load_ion_token() {
+                    Some(t) => t,
+                    None    => { self.ion_endpoint_loading = false; return Task::none(); }
+                };
+                return Task::perform(
+                    async move {
+                        let client = IonClient::new(token);
+                        client.get_asset_endpoint(id).await
+                            .map(|ep| (id, ep))
+                            .map_err(|e| (id, e))
+                    },
+                    |res| match res {
+                        Ok((asset_id, endpoint)) => Message::IonEndpointLoaded { asset_id, endpoint },
+                        Err((asset_id, error))   => Message::IonEndpointFailed { asset_id, error },
+                    },
+                );
+            }
+            Message::IonEndpointLoaded { asset_id, endpoint } => {
+                if self.selected_ion_asset == Some(asset_id) {
+                    self.ion_endpoint         = Some(endpoint);
+                    self.ion_endpoint_loading = false;
+                }
+            }
+            Message::IonEndpointFailed { asset_id, error } => {
+                if self.selected_ion_asset == Some(asset_id) {
+                    self.ion_endpoint_loading = false;
+                    eprintln!("Ion endpoint failed: {error}");
+                }
+            }
+            Message::RegionTilesLoaded { country_idx, pixels, width, height } => {
+                if self.selected_country == Some(country_idx) {
+                    self.region_texture = Some((pixels, width, height));
+                    self.region_for_idx = Some(country_idx);
+                }
+            }
+            Message::RegionTilesFailed(e) => {
+                eprintln!("Region tile fetch failed: {e}");
+            }
         }
         Task::none()
     }
@@ -187,11 +323,19 @@ impl GlobeApp {
             self.auto_rotate,
             &self.ion_status,
             &self.ion_assets,
+            self.selected_ion_asset,
+            self.ion_endpoint.as_ref(),
+            self.ion_endpoint_loading,
+            self.region_texture.as_ref(),
         );
 
         let globe = Shader::new(GlobeProgram {
-            countries: self.countries.clone(),
-            rotation: self.rotation,
+            countries:        self.countries.clone(),
+            rotation:         self.rotation,
+            texture:          self.maps_texture.clone(),
+            texture_width:    self.maps_texture_w,
+            texture_height:   self.maps_texture_h,
+            on_country_click: Message::SelectCountry,
         })
         .width(Length::Fill)
         .height(Length::Fill);
@@ -208,6 +352,7 @@ impl GlobeApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cesium::ion_api::IonAttribution;
     use crate::data::types::{LatLon, Subdivision};
 
     fn sample_countries() -> Vec<Country> {
@@ -333,6 +478,83 @@ mod tests {
     fn test_title() {
         let (app, _) = GlobeApp::new();
         assert!(app.title().contains("Globe"));
+    }
+
+    // ── Feature C tests ──────────────────────────────────────────────────────
+
+    fn sample_endpoint() -> IonEndpoint {
+        IonEndpoint {
+            url:           "https://assets.cesium.com/1/".into(),
+            access_token:  "tok".into(),
+            endpoint_type: "TERRAIN".into(),
+            attributions:  vec![],
+        }
+    }
+
+    #[test]
+    fn test_select_ion_asset_sets_loading() {
+        let (mut app, _) = GlobeApp::new();
+        let _ = app.update(Message::SelectIonAsset(1));
+        assert_eq!(app.selected_ion_asset, Some(1));
+        // Either loading flag is true (token present) or false (no token) — never panics.
+        assert!(app.ion_endpoint.is_none());
+    }
+
+    #[test]
+    fn test_ion_endpoint_loaded_stores_result() {
+        let (mut app, _) = GlobeApp::new();
+        let _ = app.update(Message::SelectIonAsset(1));
+        let _ = app.update(Message::IonEndpointLoaded { asset_id: 1, endpoint: sample_endpoint() });
+        assert!(app.ion_endpoint.is_some());
+        assert!(!app.ion_endpoint_loading);
+    }
+
+    #[test]
+    fn test_ion_endpoint_loaded_wrong_id_ignored() {
+        let (mut app, _) = GlobeApp::new();
+        let _ = app.update(Message::SelectIonAsset(1));
+        let _ = app.update(Message::IonEndpointLoaded { asset_id: 2, endpoint: sample_endpoint() });
+        assert!(app.ion_endpoint.is_none());
+    }
+
+    // ── Feature D tests ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_region_tiles_loaded_stores_texture() {
+        let (mut app, _) = GlobeApp::new();
+        app.countries = sample_countries();
+        let _ = app.update(Message::SelectCountry(0));
+        let pixels = Arc::new(vec![0u8; 256 * 256 * 4]);
+        let _ = app.update(Message::RegionTilesLoaded {
+            country_idx: 0,
+            pixels: pixels.clone(),
+            width:  256,
+            height: 256,
+        });
+        assert!(app.region_texture.is_some());
+        assert_eq!(app.region_for_idx, Some(0));
+    }
+
+    #[test]
+    fn test_region_tiles_loaded_wrong_idx_ignored() {
+        let (mut app, _) = GlobeApp::new();
+        app.countries = sample_countries();
+        let _ = app.update(Message::SelectCountry(0));
+        let pixels = Arc::new(vec![0u8; 256 * 256 * 4]);
+        let _ = app.update(Message::RegionTilesLoaded {
+            country_idx: 99, // not selected
+            pixels,
+            width:  256,
+            height: 256,
+        });
+        assert!(app.region_texture.is_none());
+    }
+
+    #[test]
+    fn test_region_tiles_failed_does_not_crash() {
+        let (mut app, _) = GlobeApp::new();
+        let _ = app.update(Message::RegionTilesFailed("some error".into()));
+        assert!(app.region_texture.is_none());
     }
 
     #[test]

@@ -20,9 +20,10 @@ const BORDERS_BIN: &[u8] = include_bytes!("../../assets/borders.bin");
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub struct GlobeUniforms {
-    pub mvp: [[f32; 4]; 4], // 64 bytes
-    pub time: f32,           // 4 bytes
-    pub _pad: [f32; 3],      // 12 bytes
+    pub mvp:         [[f32; 4]; 4], // 64 bytes
+    pub time:        f32,           // 4 bytes
+    pub use_texture: f32,           // 4 bytes  0.0 = procedural, 1.0 = satellite
+    pub _pad:        [f32; 2],      // 8 bytes
 }
 
 /// Uniform data for the marker billboard shader (112 bytes).
@@ -63,7 +64,7 @@ const QUAD_INDICES: [u16; 6] = [0, 1, 2, 1, 3, 2];
 // ─── WGSL shaders ─────────────────────────────────────────────────────────────
 
 const BORDER_SHADER: &str = r#"
-struct Uniforms { mvp: mat4x4<f32>, time: f32, _p0: f32, _p1: f32, _p2: f32 }
+struct Uniforms { mvp: mat4x4<f32>, time: f32, use_texture: f32, _p0: f32, _p1: f32 }
 @group(0) @binding(0) var<uniform> u: Uniforms;
 
 @vertex fn vs_main(@location(0) pos: vec3<f32>) -> @builtin(position) vec4<f32> {
@@ -76,19 +77,21 @@ struct Uniforms { mvp: mat4x4<f32>, time: f32, _p0: f32, _p1: f32, _p2: f32 }
 
 const GLOBE_SHADER: &str = r#"
 struct GlobeUniforms {
-    mvp:  mat4x4<f32>,
-    time: f32,
-    _p0:  f32,
-    _p1:  f32,
-    _p2:  f32,
+    mvp:         mat4x4<f32>,
+    time:        f32,
+    use_texture: f32,
+    _p0:         f32,
+    _p1:         f32,
 }
-@group(0) @binding(0) var<uniform> u: GlobeUniforms;
+@group(0) @binding(0) var<uniform>   u:         GlobeUniforms;
+@group(0) @binding(1) var           t_sampler:  sampler;
+@group(0) @binding(2) var           t_texture:  texture_2d<f32>;
 
 struct VertIn  { @location(0) position: vec3<f32>, @location(1) normal: vec3<f32> }
 struct VertOut {
-    @builtin(position) clip_pos:    vec4<f32>,
-    @location(0)       world_pos:   vec3<f32>,
-    @location(1)       world_norm:  vec3<f32>,
+    @builtin(position) clip_pos:   vec4<f32>,
+    @location(0)       world_pos:  vec3<f32>,
+    @location(1)       world_norm: vec3<f32>,
 }
 
 @vertex fn vs_main(in: VertIn) -> VertOut {
@@ -100,28 +103,42 @@ struct VertOut {
 }
 
 @fragment fn fs_main(in: VertOut) -> @location(0) vec4<f32> {
-    let deep    = vec3<f32>(0.02, 0.06, 0.20);
-    let mid     = vec3<f32>(0.04, 0.14, 0.42);
-    let shallow = vec3<f32>(0.07, 0.22, 0.55);
+    let pi  = 3.14159265;
+    let lon = atan2(in.world_pos.x, in.world_pos.z);
+    let lat = asin(clamp(in.world_pos.y, -1.0, 1.0));
 
-    let lat_n = (asin(clamp(in.world_pos.y, -1.0, 1.0)) / 1.5708 + 1.0) * 0.5;
-    let base  = mix(
-        mix(deep, mid,     clamp(lat_n * 2.0,       0.0, 1.0)),
-        shallow,           clamp(lat_n * 2.0 - 1.0, 0.0, 1.0)
-    );
+    var base: vec3<f32>;
+    if u.use_texture > 0.5 {
+        // Sample equirectangular satellite texture.
+        // u_tex: 0 = lon -180°, 1 = lon +180°  (prime meridian at 0.5)
+        // v_tex: 0 = north pole, 1 = south pole
+        let u_tex = (lon + pi) / (2.0 * pi);
+        let v_tex = (pi / 2.0 - lat) / pi;
+        base = textureSample(t_texture, t_sampler, vec2<f32>(u_tex, v_tex)).rgb;
+    } else {
+        let deep    = vec3<f32>(0.02, 0.06, 0.20);
+        let mid     = vec3<f32>(0.04, 0.14, 0.42);
+        let shallow = vec3<f32>(0.07, 0.22, 0.55);
+        let lat_n   = (lat / 1.5708 + 1.0) * 0.5;
+        base = mix(
+            mix(deep, mid, clamp(lat_n * 2.0, 0.0, 1.0)),
+            shallow,       clamp(lat_n * 2.0 - 1.0, 0.0, 1.0)
+        );
+    }
 
     let sun  = normalize(vec3<f32>(1.0, 0.5, 1.0));
     let diff = max(dot(in.world_norm, sun), 0.0);
-    let lit  = base * (0.3 + diff * 0.7);
+    let lit  = base * (0.35 + diff * 0.65);
 
-    let pi    = 3.14159265;
-    let lon   = atan2(in.world_pos.x, in.world_pos.z);
-    let lat   = asin(clamp(in.world_pos.y, -1.0, 1.0));
-    let x_lon = fract((lon / pi + 1.0) * 6.0);
-    let x_lat = fract((lat / pi + 0.5) * 6.0);
-    let grid  = 1.0 - smoothstep(0.0, 0.04, min(min(x_lon, 1.0 - x_lon), min(x_lat, 1.0 - x_lat)));
-
-    return vec4<f32>(lit + grid * vec3<f32>(0.04, 0.08, 0.15), 1.0);
+    // Graticule only in procedural mode.
+    if u.use_texture < 0.5 {
+        let x_lon = fract((lon / pi + 1.0) * 6.0);
+        let x_lat = fract((lat / pi + 0.5) * 6.0);
+        let grid  = 1.0 - smoothstep(0.0, 0.04,
+            min(min(x_lon, 1.0 - x_lon), min(x_lat, 1.0 - x_lat)));
+        return vec4<f32>(lit + grid * vec3<f32>(0.04, 0.08, 0.15), 1.0);
+    }
+    return vec4<f32>(lit, 1.0);
 }
 "#;
 
@@ -179,12 +196,18 @@ struct VertOut {
 /// Holds all persistent wgpu GPU resources for globe rendering.
 pub struct GlobePipeline {
     // Sphere
-    sphere_pipeline:   wgpu::RenderPipeline,
-    sphere_vbuf:       wgpu::Buffer,
-    sphere_ibuf:       wgpu::Buffer,
-    sphere_idx_count:  u32,
-    globe_ubuf:        wgpu::Buffer,
-    globe_bind_group:  wgpu::BindGroup,
+    sphere_pipeline:      wgpu::RenderPipeline,
+    sphere_vbuf:          wgpu::Buffer,
+    sphere_ibuf:          wgpu::Buffer,
+    sphere_idx_count:     u32,
+    globe_ubuf:           wgpu::Buffer,
+    globe_bind_group:     wgpu::BindGroup,
+    globe_bgl:            wgpu::BindGroupLayout,
+    // Satellite texture resources
+    globe_texture:        wgpu::Texture,
+    globe_texture_view:   wgpu::TextureView,
+    globe_sampler:        wgpu::Sampler,
+    has_satellite:        bool,
 
     // Country border lines (static, never updated)
     borders_pipeline:  wgpu::RenderPipeline,
@@ -217,19 +240,68 @@ impl Pipeline for GlobePipeline {
         });
         let sphere_idx_count = mesh.indices.len() as u32;
 
-        // ── Globe uniform buffer & bind group ────────────────────────────────
+        // ── Globe uniform buffer, texture, sampler & bind group ──────────────
         let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label:   Some("globe_bgl"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding:    0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty:                 wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size:   None,
+            entries: &[
+                // binding 0: uniform buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding:    0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty:                 wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size:   None,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                // binding 1: sampler
+                wgpu::BindGroupLayoutEntry {
+                    binding:    1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty:         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count:      None,
+                },
+                // binding 2: satellite texture
+                wgpu::BindGroupLayoutEntry {
+                    binding:    2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type:    wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled:   false,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        // 1×1 dark-ocean placeholder until satellite texture is fetched.
+        let placeholder_data: [u8; 4] = [20, 30, 80, 255];
+        let globe_texture = device.create_texture_with_data(
+            _queue,
+            &wgpu::TextureDescriptor {
+                label:                 Some("globe_tex"),
+                size:                  wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+                mip_level_count:       1,
+                sample_count:          1,
+                dimension:             wgpu::TextureDimension::D2,
+                format:                wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage:                 wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats:          &[],
+            },
+            wgpu::util::TextureDataOrder::LayerMajor,
+            &placeholder_data,
+        );
+        let globe_texture_view = globe_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let globe_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label:            Some("globe_sampler"),
+            address_mode_u:   wgpu::AddressMode::Repeat,
+            address_mode_v:   wgpu::AddressMode::ClampToEdge,
+            address_mode_w:   wgpu::AddressMode::ClampToEdge,
+            mag_filter:       wgpu::FilterMode::Linear,
+            min_filter:       wgpu::FilterMode::Linear,
+            ..Default::default()
         });
 
         let globe_ubuf = device.create_buffer(&wgpu::BufferDescriptor {
@@ -241,10 +313,11 @@ impl Pipeline for GlobePipeline {
         let globe_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label:   Some("globe_bg"),
             layout:  &bgl,
-            entries: &[wgpu::BindGroupEntry {
-                binding:  0,
-                resource: globe_ubuf.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: globe_ubuf.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&globe_sampler) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&globe_texture_view) },
+            ],
         });
 
         // ── Globe render pipeline ────────────────────────────────────────────
@@ -361,6 +434,21 @@ impl Pipeline for GlobePipeline {
             mapped_at_creation: false,
         });
 
+        // Separate 1-binding layout for marker and border shaders (uniform only).
+        let ubuf_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label:   Some("ubuf_bgl"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding:    0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty:                 wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size:   None,
+                },
+                count: None,
+            }],
+        });
+
         let marker_ubuf = device.create_buffer(&wgpu::BufferDescriptor {
             label:              Some("marker_ubuf"),
             size:               std::mem::size_of::<MarkerUniforms>() as u64,
@@ -369,7 +457,7 @@ impl Pipeline for GlobePipeline {
         });
         let marker_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label:   Some("marker_bg"),
-            layout:  &bgl,
+            layout:  &ubuf_bgl,
             entries: &[wgpu::BindGroupEntry {
                 binding:  0,
                 resource: marker_ubuf.as_entire_binding(),
@@ -383,7 +471,7 @@ impl Pipeline for GlobePipeline {
         });
         let marker_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label:                Some("marker_pl"),
-            bind_group_layouts:   &[&bgl],
+            bind_group_layouts:   &[&ubuf_bgl],
             push_constant_ranges: &[],
         });
         let marker_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -441,6 +529,11 @@ impl Pipeline for GlobePipeline {
             sphere_idx_count,
             globe_ubuf,
             globe_bind_group,
+            globe_bgl: bgl,
+            globe_texture,
+            globe_texture_view,
+            globe_sampler,
+            has_satellite: false,
             borders_pipeline,
             borders_vbuf,
             borders_vtx_count,
@@ -463,6 +556,10 @@ pub struct GlobePrimitive {
     pub globe_uniforms:  GlobeUniforms,
     pub marker_uniforms: MarkerUniforms,
     pub markers:         Vec<MarkerInstance>,
+    /// Satellite texture pixels (RGBA). Only Some until first GPU upload.
+    pub texture_pixels:  Option<std::sync::Arc<Vec<u8>>>,
+    pub texture_width:   u32,
+    pub texture_height:  u32,
 }
 
 impl Primitive for GlobePrimitive {
@@ -471,11 +568,51 @@ impl Primitive for GlobePrimitive {
     fn prepare(
         &self,
         pipeline: &mut GlobePipeline,
-        _device: &wgpu::Device,
+        device: &wgpu::Device,
         queue: &wgpu::Queue,
         _bounds: &Rectangle,
         _viewport: &Viewport,
     ) {
+        // Upload satellite texture the first time it arrives.
+        if let Some(pixels) = &self.texture_pixels {
+            if !pipeline.has_satellite && self.texture_width > 0 && self.texture_height > 0 {
+                let new_tex = device.create_texture_with_data(
+                    queue,
+                    &wgpu::TextureDescriptor {
+                        label:               Some("globe_sat_tex"),
+                        size:                wgpu::Extent3d {
+                            width:                 self.texture_width,
+                            height:                self.texture_height,
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count:     1,
+                        sample_count:        1,
+                        dimension:           wgpu::TextureDimension::D2,
+                        format:              wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage:               wgpu::TextureUsages::TEXTURE_BINDING
+                                           | wgpu::TextureUsages::COPY_DST,
+                        view_formats:        &[],
+                    },
+                    wgpu::util::TextureDataOrder::LayerMajor,
+                    pixels,
+                );
+                let new_view = new_tex.create_view(&wgpu::TextureViewDescriptor::default());
+                let new_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label:   Some("globe_bg_sat"),
+                    layout:  &pipeline.globe_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: pipeline.globe_ubuf.as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&pipeline.globe_sampler) },
+                        wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&new_view) },
+                    ],
+                });
+                pipeline.globe_texture      = new_tex;
+                pipeline.globe_texture_view = new_view;
+                pipeline.globe_bind_group   = new_bg;
+                pipeline.has_satellite      = true;
+            }
+        }
+
         queue.write_buffer(&pipeline.globe_ubuf, 0, bytemuck::bytes_of(&self.globe_uniforms));
         queue.write_buffer(&pipeline.marker_ubuf, 0, bytemuck::bytes_of(&self.marker_uniforms));
 

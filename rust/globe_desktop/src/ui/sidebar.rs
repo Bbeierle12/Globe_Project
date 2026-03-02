@@ -1,8 +1,9 @@
+use std::sync::Arc;
 use iced::widget::{column, container, row, scrollable, text, text_input, Column};
 use iced::{Element, Length};
 
 use crate::app::Message;
-use crate::cesium::ion_api::{IonAsset, IonStatus};
+use crate::cesium::ion_api::{IonAsset, IonEndpoint, IonStatus};
 use crate::data::types::Country;
 use crate::utils::format::format_population;
 use crate::utils::search::{filter_countries, sort_by_population};
@@ -18,6 +19,10 @@ pub fn sidebar_view<'a>(
     auto_rotate: bool,
     ion_status: &IonStatus,
     ion_assets: &[IonAsset],
+    selected_ion_asset:   Option<u64>,
+    ion_endpoint:         Option<&'a IonEndpoint>,
+    ion_endpoint_loading: bool,
+    region_texture:       Option<&'a (Arc<Vec<u8>>, u32, u32)>,
 ) -> Element<'a, Message> {
     let search_bar = text_input("Search countries...", search_query)
         .on_input(Message::SearchChanged)
@@ -72,15 +77,15 @@ pub fn sidebar_view<'a>(
     // Details panel: show subdivision when selected, else country.
     let details: Element<'a, Message> = match (selected_subdivision, selected_index) {
         (Some((ci, si)), _) if ci < countries.len() && si < countries[ci].subdivisions.len() => {
-            detail_panel(subdivision_detail(&countries[ci].subdivisions[si]))
+            detail_panel(subdivision_detail(&countries[ci].subdivisions[si]), None)
         }
         (_, Some(ci)) if ci < countries.len() => {
-            detail_panel(country_detail(&countries[ci]))
+            detail_panel(country_detail(&countries[ci]), region_texture)
         }
         _ => text("Select a country").size(12).into(),
     };
 
-    let ion = ion_panel(ion_status, ion_assets);
+    let ion = ion_panel(ion_status, ion_assets, selected_ion_asset, ion_endpoint, ion_endpoint_loading);
 
     let content = column![header, scrollable_list, details, ion]
         .spacing(4)
@@ -91,7 +96,13 @@ pub fn sidebar_view<'a>(
 }
 
 /// Cesium Ion status + asset list panel.
-fn ion_panel(status: &IonStatus, assets: &[IonAsset]) -> Element<'static, Message> {
+fn ion_panel(
+    status:             &IonStatus,
+    assets:             &[IonAsset],
+    selected_ion_asset: Option<u64>,
+    ion_endpoint:       Option<&IonEndpoint>,
+    ion_endpoint_loading: bool,
+) -> Element<'static, Message> {
     let header_str = match status {
         IonStatus::Loading        => "Cesium Ion  ·  Connecting…".into(),
         IonStatus::Connected(u)   => format!("Cesium Ion  ·  ✓ {u}"),
@@ -108,11 +119,28 @@ fn ion_panel(status: &IonStatus, assets: &[IonAsset]) -> Element<'static, Messag
             Some(b) if b > 0 => format!(" · {}", format_bytes(b)),
             _                => String::new(),
         };
-        rows.push(
-            text(format!("  {} · {}{}", a.name, a.asset_type, bytes_str))
-                .size(10)
-                .into(),
-        );
+        let label = text(format!("  {} · {}{}", a.name, a.asset_type, bytes_str)).size(10);
+        let btn = iced::widget::button(label)
+            .on_press(Message::SelectIonAsset(a.id))
+            .width(Length::Fill)
+            .padding(2);
+        rows.push(btn.into());
+
+        // Show endpoint info for the selected asset.
+        if selected_ion_asset == Some(a.id) {
+            if ion_endpoint_loading {
+                rows.push(text("  Loading endpoint…").size(9).into());
+            } else if let Some(ep) = ion_endpoint {
+                let url  = ep.url.clone();
+                let attr = ep.attributions.first()
+                    .map(|a| strip_html_tags(&a.html))
+                    .unwrap_or_default();
+                rows.push(text(format!("  URL: {url}")).size(9).into());
+                if !attr.is_empty() {
+                    rows.push(text(format!("  {attr}")).size(9).into());
+                }
+            }
+        }
     }
     if assets.len() > 25 {
         rows.push(text(format!("  … and {} more", assets.len() - 25)).size(10).into());
@@ -124,6 +152,35 @@ fn ion_panel(status: &IonStatus, assets: &[IonAsset]) -> Element<'static, Messag
         .into()
 }
 
+/// Strip HTML tags from a string (simple char-by-char scanner, no dependencies).
+fn strip_html_tags(html: &str) -> String {
+    let mut out     = String::with_capacity(html.len());
+    let mut in_tag  = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _   => if !in_tag { out.push(ch); }
+        }
+    }
+    out.trim().to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_html_tags_removes_tags() {
+        assert_eq!(strip_html_tags("<p>© Cesium</p>"), "© Cesium");
+    }
+
+    #[test]
+    fn test_strip_html_tags_no_tags() {
+        assert_eq!(strip_html_tags("Plain text"), "Plain text");
+    }
+}
+
 fn format_bytes(b: u64) -> String {
     if b >= 1_000_000_000 { format!("{:.1} GB", b as f64 / 1e9) }
     else if b >= 1_000_000 { format!("{:.1} MB", b as f64 / 1e6) }
@@ -132,7 +189,10 @@ fn format_bytes(b: u64) -> String {
 }
 
 /// Render a detail view panel. Takes ownership of DetailView to avoid lifetime issues.
-fn detail_panel(detail: DetailView) -> Element<'static, Message> {
+fn detail_panel(
+    detail:         DetailView,
+    region_texture: Option<&(Arc<Vec<u8>>, u32, u32)>,
+) -> Element<'static, Message> {
     let mut items: Vec<Element<'static, Message>> = vec![
         text(detail.name).size(16).into(),
         text(format!("Population: {}", detail.population)).size(12).into(),
@@ -158,6 +218,14 @@ fn detail_panel(detail: DetailView) -> Element<'static, Message> {
     }
     if let Some(count) = detail.subdivision_count {
         items.push(text(format!("Subdivisions: {count}")).size(12).into());
+    }
+
+    if let Some((pixels, w, h)) = region_texture {
+        let handle = iced::widget::image::Handle::from_rgba(*w, *h, (**pixels).clone());
+        let img = iced::widget::image(handle)
+            .width(Length::Fill)
+            .height(Length::Fixed(160.0));
+        items.push(img.into());
     }
 
     Column::with_children(items)

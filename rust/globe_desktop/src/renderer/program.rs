@@ -1,10 +1,12 @@
+use glam::Vec3;
 use iced::mouse;
 use iced::{Event, Point, Rectangle};
 use iced::widget::shader;
 
+use crate::app::Message;
 use crate::data::types::Country;
 use crate::utils::format::population_color;
-use crate::renderer::camera::{Camera, lat_lon_to_xyz};
+use crate::renderer::camera::{Camera, lat_lon_to_xyz, ray_from_ndc, ray_sphere_intersect};
 use crate::renderer::pipeline::{
     GlobeUniforms, MarkerUniforms, MarkerInstance, GlobePrimitive,
 };
@@ -18,20 +20,28 @@ pub struct GlobeState {
     pub yaw: f32,
     /// Accumulated pitch offset from mouse drag (radians).
     pub pitch: f32,
-    /// Drag start position.
+    /// Drag start position (cleared on release).
     pub drag_start: Option<Point>,
+    /// Position where the button was first pressed (used for click detection).
+    pub press_pos: Option<Point>,
 }
 
 // ─── GlobeProgram ─────────────────────────────────────────────────────────────
 
 /// Iced shader program for the 3D globe.
 pub struct GlobeProgram {
-    pub countries: Vec<Country>,
+    pub countries:        Vec<Country>,
     /// Auto-rotation angle from the app tick (radians).
-    pub rotation: f32,
+    pub rotation:         f32,
+    /// Satellite texture pixels (None until downloaded, Arc to avoid deep clone).
+    pub texture:          Option<std::sync::Arc<Vec<u8>>>,
+    pub texture_width:    u32,
+    pub texture_height:   u32,
+    /// Callback that maps a country index to the app message emitted on click.
+    pub on_country_click: fn(usize) -> Message,
 }
 
-impl<Message: Clone> shader::Program<Message> for GlobeProgram {
+impl shader::Program<Message> for GlobeProgram {
     type State     = GlobeState;
     type Primitive = GlobePrimitive;
 
@@ -53,9 +63,10 @@ impl<Message: Clone> shader::Program<Message> for GlobeProgram {
         let eye    = cam.eye();
 
         let globe_uniforms = GlobeUniforms {
-            mvp:  mvp.to_cols_array_2d(),
-            time: 0.0,
-            _pad: [0.0; 3],
+            mvp:         mvp.to_cols_array_2d(),
+            time:        0.0,
+            use_texture: if self.texture.is_some() { 1.0 } else { 0.0 },
+            _pad:        [0.0; 2],
         };
 
         let marker_uniforms = MarkerUniforms {
@@ -67,7 +78,14 @@ impl<Message: Clone> shader::Program<Message> for GlobeProgram {
 
         let markers = build_markers(&self.countries);
 
-        GlobePrimitive { globe_uniforms, marker_uniforms, markers }
+        GlobePrimitive {
+            globe_uniforms,
+            marker_uniforms,
+            markers,
+            texture_pixels:  self.texture.clone(),   // Arc clone — O(1)
+            texture_width:   self.texture_width,
+            texture_height:  self.texture_height,
+        }
     }
 
     fn update(
@@ -82,6 +100,7 @@ impl<Message: Clone> shader::Program<Message> for GlobeProgram {
                 if let mouse::Cursor::Available(pos) = cursor {
                     if bounds.contains(pos) {
                         state.drag_start = Some(pos);
+                        state.press_pos  = Some(pos);
                         return Some(shader::Action::capture());
                     }
                 }
@@ -97,6 +116,21 @@ impl<Message: Clone> shader::Program<Message> for GlobeProgram {
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                if let Some(press) = state.press_pos.take() {
+                    if let mouse::Cursor::Available(pos) = cursor {
+                        let dx = pos.x - press.x;
+                        let dy = pos.y - press.y;
+                        // Click = release within 4 px of press position.
+                        if dx * dx + dy * dy < 16.0 {
+                            let total_yaw = state.yaw + self.rotation;
+                            let pitch = if state.pitch == 0.0 { 0.3 } else { state.pitch };
+                            if let Some(idx) = pick_country(pos, bounds, total_yaw, pitch, &self.countries) {
+                                state.drag_start = None;
+                                return Some(shader::Action::publish((self.on_country_click)(idx)));
+                            }
+                        }
+                    }
+                }
                 state.drag_start = None;
             }
             _ => {}
@@ -116,6 +150,44 @@ impl<Message: Clone> shader::Program<Message> for GlobeProgram {
             mouse::Interaction::default()
         }
     }
+}
+
+/// Cast a ray from cursor position, intersect the unit sphere, find nearest country.
+///
+/// Returns `Some(index)` when the best match is within 0.15 world-space units.
+fn pick_country(
+    cursor:    iced::Point,
+    bounds:    iced::Rectangle,
+    total_yaw: f32,
+    pitch:     f32,
+    countries: &[Country],
+) -> Option<usize> {
+    let pw = bounds.width;
+    let ph = bounds.height;
+    if pw <= 0.0 || ph <= 0.0 || countries.is_empty() { return None; }
+
+    let ndc_x =  2.0 * (cursor.x - bounds.x) / pw - 1.0;
+    let ndc_y = -(2.0 * (cursor.y - bounds.y) / ph - 1.0);
+
+    let cam     = Camera { yaw: total_yaw, pitch, distance: 3.0 };
+    let inv_mvp = cam.mvp(pw / ph).inverse();
+
+    let (origin, dir) = ray_from_ndc(ndc_x, ndc_y, inv_mvp);
+    let hit = ray_sphere_intersect(origin, dir)?;
+
+    let mut best_idx  = 0;
+    let mut best_dist = f32::MAX;
+    for (i, c) in countries.iter().enumerate() {
+        let xyz = lat_lon_to_xyz(c.position.lat as f32, c.position.lon as f32);
+        let pos = Vec3::from_array(xyz);
+        let d   = (hit - pos).length();
+        if d < best_dist {
+            best_dist = d;
+            best_idx  = i;
+        }
+    }
+
+    if best_dist < 0.15 { Some(best_idx) } else { None }
 }
 
 /// Convert countries to billboard instances for GPU rendering.
@@ -230,5 +302,39 @@ mod tests {
     fn test_empty_countries_no_panic() {
         let markers = build_markers(&[]);
         assert!(markers.is_empty());
+    }
+
+    // ── pick_country tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_pick_country_empty_returns_none() {
+        let result = pick_country(
+            iced::Point::new(400.0, 300.0),
+            iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(800.0, 600.0)),
+            0.0, 0.3,
+            &[],
+        );
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_pick_country_north_pole_click() {
+        use crate::data::types::LatLon;
+        let countries = vec![Country {
+            name:               "North".into(),
+            population:         1000,
+            position:           LatLon { lat: 90.0, lon: 0.0 },
+            iso:                "NPL".into(),
+            aliases:            vec![],
+            subdivision_label:  None,
+            subdivisions:       vec![],
+        }];
+        // Click at top-center of viewport — does not panic regardless of hit/miss.
+        let _ = pick_country(
+            iced::Point::new(400.0, 50.0),
+            iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(800.0, 600.0)),
+            0.0, 0.3,
+            &countries,
+        );
     }
 }

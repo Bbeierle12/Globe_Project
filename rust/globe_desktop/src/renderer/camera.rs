@@ -47,6 +47,33 @@ impl Camera {
     }
 }
 
+/// Unproject an NDC point through the inverse MVP into a world-space ray.
+///
+/// Returns `(origin, direction)` — both in world space.
+pub fn ray_from_ndc(ndc_x: f32, ndc_y: f32, inv_mvp: Mat4) -> (Vec3, Vec3) {
+    let near = inv_mvp.project_point3(Vec3::new(ndc_x, ndc_y, -1.0));
+    let far  = inv_mvp.project_point3(Vec3::new(ndc_x, ndc_y,  1.0));
+    let dir  = (far - near).normalize();
+    (near, dir)
+}
+
+/// Ray–unit-sphere intersection (sphere centered at origin, radius 1).
+///
+/// Returns the nearest front-face hit point, or `None` on a miss or
+/// when both intersections are behind the ray origin.
+pub fn ray_sphere_intersect(origin: Vec3, dir: Vec3) -> Option<Vec3> {
+    let a    = dir.dot(dir);
+    let b    = 2.0 * origin.dot(dir);
+    let c    = origin.dot(origin) - 1.0;
+    let disc = b * b - 4.0 * a * c;
+    if disc < 0.0 { return None; }
+    let sqrt_disc = disc.sqrt();
+    let t0 = (-b - sqrt_disc) / (2.0 * a);
+    let t1 = (-b + sqrt_disc) / (2.0 * a);
+    let t  = if t0 > 0.0 { t0 } else if t1 > 0.0 { t1 } else { return None; };
+    Some(origin + dir * t)
+}
+
 /// Convert lat/lon degrees to a point on the unit sphere (Y-up, north pole = (0,1,0)).
 pub fn lat_lon_to_xyz(lat_deg: f32, lon_deg: f32) -> [f32; 3] {
     let lat = lat_deg.to_radians();
@@ -128,5 +155,34 @@ mod tests {
         let u = cam.up();
         let dot = r.dot(u);
         assert!(dot.abs() < 1e-4, "right and up should be orthogonal, dot={dot}");
+    }
+
+    // ── ray_sphere_intersect tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_ray_sphere_center_hit() {
+        // Ray along -Z from (0,0,3) hits front of sphere at (0,0,1).
+        let origin = Vec3::new(0.0, 0.0, 3.0);
+        let dir    = Vec3::new(0.0, 0.0, -1.0);
+        let hit    = ray_sphere_intersect(origin, dir).expect("should hit");
+        assert!((hit.z - 1.0).abs() < 1e-4, "expected z≈1, got {}", hit.z);
+        assert!(hit.x.abs() < 1e-4);
+        assert!(hit.y.abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_ray_sphere_miss() {
+        // Ray offset 1.5 units in X — misses unit sphere.
+        let origin = Vec3::new(1.5, 0.0, 3.0);
+        let dir    = Vec3::new(0.0, 0.0, -1.0);
+        assert!(ray_sphere_intersect(origin, dir).is_none());
+    }
+
+    #[test]
+    fn test_ray_sphere_behind_origin() {
+        // Ray pointing away from the sphere — both intersections are behind origin.
+        let origin = Vec3::new(0.0, 0.0, 3.0);
+        let dir    = Vec3::new(0.0, 0.0, 1.0); // pointing away
+        assert!(ray_sphere_intersect(origin, dir).is_none());
     }
 }
