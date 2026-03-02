@@ -27,6 +27,14 @@ export default defineConfig([
     },
   },
   {
+    files: ['scripts/**/*.{js,mjs}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
     files: ['tests/**/*.{js,jsx}'],
     languageOptions: {
       globals: {
@@ -38,6 +46,7 @@ export default defineConfig([
         afterEach: 'readonly',
         beforeAll: 'readonly',
         afterAll: 'readonly',
+        require: 'readonly',
       },
     },
     rules: {

@@ -17,7 +17,7 @@ describe("SUB_CONFIGS structure validation", function () {
   it("every config has required fields", function () {
     var requiredFields = ["iso", "url", "objectName", "codeField", "extractCode", "skipName"];
 
-    SUB_CONFIGS.forEach(function (cfg, i) {
+    SUB_CONFIGS.forEach(function (cfg) {
       requiredFields.forEach(function (field) {
         expect(cfg[field]).toBeDefined();
       });

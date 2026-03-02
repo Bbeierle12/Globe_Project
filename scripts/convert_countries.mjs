@@ -22,7 +22,6 @@ const arrayLiteral = src
   .trim()
   .replace(/;$/, '');
 
-// eslint-disable-next-line no-eval
 const raw = eval('(' + arrayLiteral + ')');
 
 // ── Conversion helpers ────────────────────────────────────────────────────────

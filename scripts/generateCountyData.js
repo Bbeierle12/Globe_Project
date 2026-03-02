@@ -131,9 +131,9 @@ async function main() {
 
   // Parse ACS 2022
   var pop2022Map = new Map();
-  for (var i = 1; i < acs2022.length; i++) {
-    var row = acs2022[i];
-    var fips = row[2] + row[3];
+  for (i = 1; i < acs2022.length; i++) {
+    row = acs2022[i];
+    fips = row[2] + row[3];
     if (row[3] === "000") continue;
     pop2022Map.set(fips, { name: row[0], pop: parseInt(row[1]) });
   }

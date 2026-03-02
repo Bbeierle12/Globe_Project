@@ -38,7 +38,7 @@ describe("Phase 1 subdivision data integrity", function () {
       });
 
       it("every subdivision has required fields", function () {
-        country.subdivisions.forEach(function (s, i) {
+        country.subdivisions.forEach(function (s) {
           expect(s.n).toBeTruthy();
           expect(s.p).toBeGreaterThan(0);
           expect(Number.isFinite(s.la)).toBe(true);
