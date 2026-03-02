@@ -50,18 +50,6 @@ struct GlobeColorRgb {
     uint8_t b;
 };
 
-/// Detail view for a selected country or subdivision.
-struct GlobeDetailView {
-    const char *name;
-    const char *population;
-    const char *density;
-    const char *region;
-    const char *capital;
-    const char *area;
-    const char *change;
-    int32_t subdivision_count;
-};
-
 extern "C" {
 
 /// Initialize the globe data layer from a JSON string.

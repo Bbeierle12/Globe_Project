@@ -1,3 +1,6 @@
+// FFI functions legitimately accept raw pointers from C callers.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 mod format;
 mod search;
 mod types;
@@ -138,16 +141,12 @@ pub extern "C" fn globe_get_subdivision(
     let region = CString::new(s.region.as_deref().unwrap_or("")).unwrap_or_default();
     let capital = CString::new(s.capital.as_deref().unwrap_or("")).unwrap_or_default();
 
-    let name_ptr;
-    let region_ptr;
-    let capital_ptr;
-
     data._strings.push(name);
-    name_ptr = data._strings.last().unwrap().as_ptr();
+    let name_ptr = data._strings.last().unwrap().as_ptr();
     data._strings.push(region);
-    region_ptr = data._strings.last().unwrap().as_ptr();
+    let region_ptr = data._strings.last().unwrap().as_ptr();
     data._strings.push(capital);
-    capital_ptr = data._strings.last().unwrap().as_ptr();
+    let capital_ptr = data._strings.last().unwrap().as_ptr();
 
     unsafe {
         *out = GlobeSubdivision {
@@ -272,10 +271,10 @@ pub extern "C" fn globe_population_color(normalized: f64) -> GlobeColorRgb {
 /// will simply push new CStrings back into the cache.
 #[unsafe(no_mangle)]
 pub extern "C" fn globe_strings_reset() {
-    if let Ok(mut data) = DATA.lock() {
-        if let Some(ref mut d) = *data {
-            d._strings.clear();
-        }
+    if let Ok(mut data) = DATA.lock()
+        && let Some(ref mut d) = *data
+    {
+        d._strings.clear();
     }
 }
 

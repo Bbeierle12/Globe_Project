@@ -1,7 +1,9 @@
 use serde::Deserialize;
 
 /// Internal country representation (Rust-owned, serde-capable).
+/// Some fields are only read during JSON deserialization (serde).
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct Country {
     pub name: String,
     pub population: u64,
@@ -16,6 +18,7 @@ pub struct Country {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct Subdivision {
     pub name: String,
     pub population: u64,
@@ -77,15 +80,3 @@ pub struct GlobeColorRgb {
     pub b: u8,
 }
 
-/// Detail view for a selected country or subdivision.
-#[repr(C)]
-pub struct GlobeDetailView {
-    pub name: *const std::ffi::c_char,
-    pub population: *const std::ffi::c_char,
-    pub density: *const std::ffi::c_char,
-    pub region: *const std::ffi::c_char,
-    pub capital: *const std::ffi::c_char,
-    pub area: *const std::ffi::c_char,
-    pub change: *const std::ffi::c_char,
-    pub subdivision_count: i32,
-}
