@@ -79,4 +79,3 @@ pub struct GlobeColorRgb {
     pub g: u8,
     pub b: u8,
 }
-
