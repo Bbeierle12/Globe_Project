@@ -8,6 +8,10 @@ import { createCityLayer } from "./cesium/cityLayer.js";
 import { createBuildingsLayer } from "./cesium/buildingsLayer.js";
 import { createEarthquakeLayer } from "./cesium/earthquakeLayer.js";
 import { createGoogleTilesLayer } from "./cesium/googleTilesLayer.js";
+import { createAirQualityLayer } from "./cesium/airQualityLayer.js";
+import { createPollenLayer } from "./cesium/pollenLayer.js";
+import { createWeatherLayer } from "./cesium/weatherLayer.js";
+import { createSolarLayer } from "./cesium/solarLayer.js";
 import { createLayerRegistry } from "./utils/layerRegistry.js";
 
 function markerSize(pop, base, range) {
@@ -225,6 +229,10 @@ export default function CesiumGlobe() {
     buildings: null,
     earthquakes: null,
     googleTiles: null,
+    airQuality: null,
+    pollen: null,
+    weather: null,
+    solar: null,
   });
   var layersStateRef = useRef(layersToggleState);
 
@@ -260,6 +268,18 @@ export default function CesiumGlobe() {
       var isGoogleActive = cl.googleTiles && cl.googleTiles.show;
       var h = viewerRef.current.camera.positionCartographic.height;
       cl.buildings.show = !!layersToggleState.buildings && !isGoogleActive && (h < 1800000);
+    }
+    if (cl.airQuality && cl.airQuality.setVisible) {
+      cl.airQuality.setVisible(!!layersToggleState.airQuality);
+    }
+    if (cl.pollen && cl.pollen.setVisible) {
+      cl.pollen.setVisible(!!layersToggleState.pollen);
+    }
+    if (cl.weather && cl.weather.setVisible) {
+      cl.weather.setVisible(!!layersToggleState.weather);
+    }
+    if (cl.solar && cl.solar.setVisible) {
+      cl.solar.setVisible(!!layersToggleState.solar);
     }
 
     viewerRef.current.scene.requestRender();
@@ -320,6 +340,38 @@ export default function CesiumGlobe() {
         registry.register("earthquakes", earthquakeLayer);
         layersRef.current.earthquakes = earthquakeLayer;
 
+        var airQualityLayer = await createAirQualityLayer(viewer);
+        if (dead) { cleanupAll(resources); return; }
+        if (airQualityLayer) {
+          registry.register("airQuality", airQualityLayer);
+          layersRef.current.airQuality = airQualityLayer;
+          airQualityLayer.setVisible(!!useAppStore.getState().layers.airQuality);
+        }
+
+        var pollenLayer = await createPollenLayer(viewer);
+        if (dead) { cleanupAll(resources); return; }
+        if (pollenLayer) {
+          registry.register("pollen", pollenLayer);
+          layersRef.current.pollen = pollenLayer;
+          pollenLayer.setVisible(!!useAppStore.getState().layers.pollen);
+        }
+
+        var weatherLayer = await createWeatherLayer(viewer);
+        if (dead) { cleanupAll(resources); return; }
+        if (weatherLayer) {
+          registry.register("weather", weatherLayer);
+          layersRef.current.weather = weatherLayer;
+          weatherLayer.setVisible(!!useAppStore.getState().layers.weather);
+        }
+
+        var solarLayer = await createSolarLayer(viewer);
+        if (dead) { cleanupAll(resources); return; }
+        if (solarLayer) {
+          registry.register("solar", solarLayer);
+          layersRef.current.solar = solarLayer;
+          solarLayer.setVisible(!!useAppStore.getState().layers.solar);
+        }
+
         var markers = createMarkers(viewer);
         markersRef.current.country = markers.country;
         markersRef.current.subdivisionsByIso = markers.subdivisionsByIso;
@@ -348,7 +400,7 @@ export default function CesiumGlobe() {
       cleanupAll(resources);
       viewerRef.current = null;
       handlerRef.current = null;
-      layersRef.current = { population: null, cities: null, buildings: null, earthquakes: null, googleTiles: null };
+      layersRef.current = { population: null, cities: null, buildings: null, earthquakes: null, googleTiles: null, airQuality: null, pollen: null, weather: null, solar: null };
     };
   }, []);
 

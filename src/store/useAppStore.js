@@ -64,6 +64,10 @@ var useAppStore = create(function (set, get) {
       cities: true,
       googleTiles: true,
       population: true,
+      airQuality: false,
+      pollen: false,
+      weather: false,
+      solar: false,
     },
     toggleLayer: function (layerName) {
       set(function (s) { return { layers: { ...s.layers, [layerName]: !s.layers[layerName] } }; });
